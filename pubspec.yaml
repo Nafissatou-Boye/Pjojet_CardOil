@@ -1,0 +1,72 @@
+name: gpay_app
+description: SenPay - Votre application de paiement sécurisée.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.10.8 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter  
+
+  cupertino_icons: ^1.0.8
+  nb_utils: ^7.2.0
+  image_picker: ^1.2.1
+  package_info_plus: ^9.0.0
+  fluttertoast: ^9.0.0
+  share_plus: ^12.0.1
+  path_provider: ^2.1.5
+  connectivity_plus: ^7.0.0
+  cached_network_image: ^3.4.1
+  http: ^1.6.0
+  provider: ^6.1.5
+  passcode_screen: ^2.0.1
+  camera: ^0.11.3
+  native_device_orientation: ^2.1.0
+  video_player: ^2.5.0
+  rxdart: ^0.28.0
+  connectivity_for_web: ^0.4.0
+  carousel_slider: ^5.1.2
+  scratcher: ^2.0.0
+  intl: ^0.20.2
+  shared_preferences: ^2.1.1
+
+  
+
+  # Firebase (compatible Flutter 3.10+)
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  cloud_firestore: ^6.1.2
+  firebase_analytics: ^12.1.2
+  cloud_functions: ^6.0.6
+  qr_flutter: ^4.0.0
+
+  # Scanner QR (version compatible disponible)
+  mobile_scanner: ^2.1.0
+
+  # Google Fonts
+  google_fonts: ^5.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.12.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - images/gPay/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "images/gPay/iconeapp.png"
+  remove_alpha_ios: true

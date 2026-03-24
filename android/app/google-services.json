@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "223207611288",
+    "project_id": "gpayapp-1af47",
+    "storage_bucket": "gpayapp-1af47.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:223207611288:android:0a1736561b62003831a9ed",
+        "android_client_info": {
+          "package_name": "com.cardmanager.nameapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "223207611288-3ibi7h928nijbakbr0vdo3rfhc8qkl25.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRNofY3ItbGMem5ZYhfdxbS4PUk-flkk4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "223207611288-3ibi7h928nijbakbr0vdo3rfhc8qkl25.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "223207611288-795ciusolo16i208gb47kmsa11mqnk2m.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cardoilManager"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:223207611288:android:a905dfaa69de0c5d31a9ed",
+        "android_client_info": {
+          "package_name": "com.senpay.appname"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "223207611288-9ht48hi9ur30qcpav9k9v1dstge4a31k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.senpay.appname",
+            "certificate_hash": "6b0daa0f9bbf57d4da4e3803f069cc4aaf9df4ed"
+          }
+        },
+        {
+          "client_id": "223207611288-3ibi7h928nijbakbr0vdo3rfhc8qkl25.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRNofY3ItbGMem5ZYhfdxbS4PUk-flkk4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "223207611288-3ibi7h928nijbakbr0vdo3rfhc8qkl25.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "223207611288-795ciusolo16i208gb47kmsa11mqnk2m.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.cardoilManager"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
