@@ -373,7 +373,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
     // ── Appel createVente ───────────────────────────────────
     final result = await txService.createVente(
-      token: token,
+      //token: token,
       username: widget.pompisteUsername,
       clientId: int.tryParse(user.uid) ?? 0,
       amount: widget.amount.toStringAsFixed(0),

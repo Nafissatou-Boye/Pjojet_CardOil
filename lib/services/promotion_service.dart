@@ -1,8 +1,3 @@
-// lib/services/promotion_service.dart
-//
-// Migration Firebase → API REST
-// Toutes les méthodes de l'original sont conservées avec les mêmes signatures.
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/promotion_model.dart';
@@ -52,7 +47,7 @@ class PromotionService {
   }
 
   // ─── STREAM PROMOTIONS ACTIVES (AVEC LIMITE) ─────────────────
-  // Conserve la même signature que l'original Firebase
+
   Stream<List<PromotionModel>> getPromotionsStream(
     String companyId, {
     int limit = 10,

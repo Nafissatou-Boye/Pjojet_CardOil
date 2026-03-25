@@ -1,9 +1,7 @@
-// lib/main.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart'; // ✅ AJOUT
+import 'package:firebase_core/firebase_core.dart'; 
 
 import 'langue/app_localizations.dart';
 import 'services/auth_service.dart';
@@ -16,7 +14,7 @@ import 'screens/client/client_dashboard.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ INITIALISATION FIREBASE
+
   await Firebase.initializeApp();
 
   runApp(const CardOilApp());
@@ -66,7 +64,7 @@ class CardOilApp extends StatelessWidget {
   }
 }
 
-// ── AuthWrapper : vérifie le token JWT en local ──────────────────────────────
+
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 

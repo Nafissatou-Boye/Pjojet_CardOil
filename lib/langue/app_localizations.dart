@@ -1,5 +1,3 @@
-// lib/l10n/app_localizations.dart
-// ✅ CORRECTION : ajout de fillFormToRegister + passwordMismatch (manquants)
 import 'package:flutter/material.dart';
 
 class _Translations {
@@ -59,9 +57,26 @@ class _Translations {
   final String seeDetails, expired, validityPeriod, conditions;
   final String alreadyParticipated, participationSuccess, participationError, promoNotFound;
   final String maskCard;
+  // ✅ Privacy policy sections
+  final String privacyIntro;
+  final String privacySection1Title, privacySection1Content;
+  final String privacySection2Title, privacySection2Content;
+  final String privacySection3Title, privacySection3Content;
+  final String privacySection4Title, privacySection4Content;
+  final String privacySection5Title, privacySection5Content;
+  final String privacySection6Title, privacySection6Content;
+  final String privacySection7Title, privacySection7Content;
+  final String privacySection8Title, privacySection8Content;
+  final String privacyContactEmail;
   // ✅ NOUVEAUX CHAMPS MANQUANTS
   final String fillFormToRegister;
   final String passwordMismatch;
+  final String codeSent;
+  final String verifyPhone;
+  final String verify;
+  final String resend;
+  final String didntReceiveCode;
+  final String codeSentTo;
 
   const _Translations({
     required this.welcomeTitle, required this.welcomeGreeting, required this.welcomeSubtitle,
@@ -139,8 +154,24 @@ class _Translations {
     required this.alreadyParticipated, required this.participationSuccess,
     required this.participationError, required this.promoNotFound,
     required this.maskCard,
+    required this.privacyIntro,
+    required this.privacySection1Title, required this.privacySection1Content,
+    required this.privacySection2Title, required this.privacySection2Content,
+    required this.privacySection3Title, required this.privacySection3Content,
+    required this.privacySection4Title, required this.privacySection4Content,
+    required this.privacySection5Title, required this.privacySection5Content,
+    required this.privacySection6Title, required this.privacySection6Content,
+    required this.privacySection7Title, required this.privacySection7Content,
+    required this.privacySection8Title, required this.privacySection8Content,
+    required this.privacyContactEmail,
     required this.fillFormToRegister,
     required this.passwordMismatch,
+    required this.codeSent,
+    required this.verifyPhone,
+    required this.verify,
+    required this.resend,
+    required this.didntReceiveCode,
+    required this.codeSentTo,
   });
 }
 
@@ -250,9 +281,33 @@ const _fr = _Translations(
   participationSuccess: 'Participation enregistrée avec succès !',
   participationError: 'Erreur lors de la participation', promoNotFound: 'Promotion introuvable',
   maskCard: 'Masquer la carte',
+  privacyIntro: 'Chez Senpay, nous nous engageons à protéger la confidentialité et la sécurité des informations personnelles de nos utilisateurs. Cette politique décrit la manière dont nous collectons, utilisons et protégeons vos informations.',
+  privacySection1Title: '1. Informations que nous collectons',
+  privacySection1Content: 'Informations personnelles : nom, adresse e-mail, numéro de téléphone lors de la création de compte ou d\'une transaction.\n\nInformations d\'utilisation : comment vous interagissez avec notre application.',
+  privacySection2Title: '2. Comment nous utilisons vos informations',
+  privacySection2Content: 'Pour fournir nos services, traiter les transactions et gérer votre compte.\n\nPour améliorer nos services et analyser les tendances d\'utilisation.\n\nPour vous envoyer des mises à jour importantes et des notifications.',
+  privacySection3Title: '3. Partage d\'informations',
+  privacySection3Content: 'Senpay ne partage pas vos informations avec des prestataires de services tiers.',
+  privacySection4Title: '4. Sécurité des données',
+  privacySection4Content: 'Nous mettons en œuvre des mesures de sécurité standard pour protéger vos informations contre tout accès non autorisé.',
+  privacySection5Title: '5. Vos choix',
+  privacySection5Content: 'Vous pouvez accéder, mettre à jour ou supprimer vos informations personnelles en contactant notre équipe d\'assistance.',
+  privacySection6Title: '6. Confidentialité des enfants',
+  privacySection6Content: 'Nos services ne sont pas destinés aux personnes de moins de 18 ans. Nous ne collectons pas sciemment de données auprès de mineurs.',
+  privacySection7Title: '7. Modifications de cette politique',
+  privacySection7Content: 'Nous nous réservons le droit de mettre à jour cette politique à tout moment. Les changements seront publiés sur notre site.',
+  privacySection8Title: '8. Contactez-nous',
+  privacySection8Content: 'Pour toute question concernant notre politique de confidentialité :',
+  privacyContactEmail: 'contact@senpay.io',
   // ✅ NOUVEAUX
   fillFormToRegister: 'Remplissez le formulaire pour vous inscrire',
   passwordMismatch: 'Les mots de passe ne correspondent pas',
+  codeSent: 'Code renvoyé !',
+  verifyPhone: 'Vérification du numéro',
+  verify: 'Vérifier',
+  resend: 'Renvoyer',
+  didntReceiveCode: 'Vous n\'avez pas reçu le code ?',
+  codeSentTo: 'Code envoyé au',
 );
 
 // ── 🇬🇧 English ────────────────────────────────────────────────────────────────
@@ -360,8 +415,32 @@ const _en = _Translations(
   participationSuccess: 'Participation registered successfully!',
   participationError: 'Error during participation', promoNotFound: 'Promotion not found',
   maskCard: 'Hide card',
+  privacyIntro: 'At Senpay, we are committed to protecting the privacy and security of our users\' personal information. This policy describes how we collect, use and protect your information.',
+  privacySection1Title: '1. Information we collect',
+  privacySection1Content: 'Personal information: name, email address, phone number when creating an account or making a transaction.\n\nUsage information: how you interact with our application.',
+  privacySection2Title: '2. How we use your information',
+  privacySection2Content: 'To provide our services, process transactions and manage your account.\n\nTo improve our services and analyze usage trends.\n\nTo send you important updates and notifications.',
+  privacySection3Title: '3. Information sharing',
+  privacySection3Content: 'Senpay does not share your information with third-party service providers.',
+  privacySection4Title: '4. Data security',
+  privacySection4Content: 'We implement industry-standard security measures to protect your information from unauthorized access.',
+  privacySection5Title: '5. Your choices',
+  privacySection5Content: 'You can access, update or delete your personal information by contacting our support team.',
+  privacySection6Title: '6. Children\'s privacy',
+  privacySection6Content: 'Our services are not intended for persons under 18 years of age. We do not knowingly collect data from minors.',
+  privacySection7Title: '7. Changes to this policy',
+  privacySection7Content: 'We reserve the right to update this policy at any time. Changes will be posted on our website.',
+  privacySection8Title: '8. Contact us',
+  privacySection8Content: 'For any questions regarding our privacy policy:',
+  privacyContactEmail: 'contact@senpay.io',
   fillFormToRegister: 'Fill in the form to register',
   passwordMismatch: 'Passwords do not match',
+  codeSent: 'Code resent!',
+  verifyPhone: 'Phone verification',
+  verify: 'Verify',
+  resend: 'Resend',
+  didntReceiveCode: 'Didn\'t receive the code?',
+  codeSentTo: 'Code sent to',
 );
 
 // ── 🇸🇦 العربية ──────────────────────────────────────────────────────────────
@@ -465,8 +544,32 @@ const _ar = _Translations(
   participationSuccess: 'تم تسجيل مشاركتك بنجاح!',
   participationError: 'خطأ أثناء المشاركة', promoNotFound: 'العرض غير موجود',
   maskCard: 'إخفاء البطاقة',
+  privacyIntro: 'في Senpay، نلتزم بحماية خصوصية وأمان المعلومات الشخصية لمستخدمينا. تصف هذه السياسة كيفية جمع معلوماتك واستخدامها وحمايتها.',
+  privacySection1Title: '1. المعلومات التي نجمعها',
+  privacySection1Content: 'المعلومات الشخصية: الاسم والبريد الإلكتروني ورقم الهاتف عند إنشاء حساب أو إجراء معاملة.\n\nمعلومات الاستخدام: كيفية تفاعلك مع تطبيقنا.',
+  privacySection2Title: '2. كيفية استخدام معلوماتك',
+  privacySection2Content: 'لتقديم خدماتنا ومعالجة المعاملات وإدارة حسابك.\n\nلتحسين خدماتنا وتحليل اتجاهات الاستخدام.\n\nلإرسال التحديثات المهمة والإشعارات إليك.',
+  privacySection3Title: '3. مشاركة المعلومات',
+  privacySection3Content: 'لا تشارك Senpay معلوماتك مع مزودي خدمات خارجيين.',
+  privacySection4Title: '4. أمان البيانات',
+  privacySection4Content: 'نطبق تدابير أمنية قياسية لحماية معلوماتك من الوصول غير المصرح به.',
+  privacySection5Title: '5. خياراتك',
+  privacySection5Content: 'يمكنك الوصول إلى معلوماتك الشخصية أو تحديثها أو حذفها عن طريق الاتصال بفريق الدعم.',
+  privacySection6Title: '6. خصوصية الأطفال',
+  privacySection6Content: 'خدماتنا غير مخصصة للأشخاص دون سن 18 عامًا. لا نجمع بيانات من القاصرين عن قصد.',
+  privacySection7Title: '7. تغييرات على هذه السياسة',
+  privacySection7Content: 'نحتفظ بالحق في تحديث هذه السياسة في أي وقت. سيتم نشر التغييرات على موقعنا.',
+  privacySection8Title: '8. اتصل بنا',
+  privacySection8Content: 'لأي أسئلة تتعلق بسياسة الخصوصية:',
+  privacyContactEmail: 'contact@senpay.io',
   fillFormToRegister: 'أكمل النموذج للتسجيل',
   passwordMismatch: 'كلمتا المرور غير متطابقتين',
+  codeSent: 'تم إعادة إرسال الرمز!',
+  verifyPhone: 'التحقق من الرقم',
+  verify: 'تحقق',
+  resend: 'إعادة إرسال',
+  didntReceiveCode: 'لم تستلم الرمز؟',
+  codeSentTo: 'تم إرسال الرمز إلى',
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -687,9 +790,33 @@ class AppLocalizations {
   String get participationError   => _t.participationError;
   String get promoNotFound        => _t.promoNotFound;
   String get maskCard             => _t.maskCard;
+  String get privacyIntro         => _t.privacyIntro;
+  String get privacySection1Title => _t.privacySection1Title;
+  String get privacySection1Content => _t.privacySection1Content;
+  String get privacySection2Title => _t.privacySection2Title;
+  String get privacySection2Content => _t.privacySection2Content;
+  String get privacySection3Title => _t.privacySection3Title;
+  String get privacySection3Content => _t.privacySection3Content;
+  String get privacySection4Title => _t.privacySection4Title;
+  String get privacySection4Content => _t.privacySection4Content;
+  String get privacySection5Title => _t.privacySection5Title;
+  String get privacySection5Content => _t.privacySection5Content;
+  String get privacySection6Title => _t.privacySection6Title;
+  String get privacySection6Content => _t.privacySection6Content;
+  String get privacySection7Title => _t.privacySection7Title;
+  String get privacySection7Content => _t.privacySection7Content;
+  String get privacySection8Title => _t.privacySection8Title;
+  String get privacySection8Content => _t.privacySection8Content;
+  String get privacyContactEmail  => _t.privacyContactEmail;
   // ✅ NOUVEAUX GETTERS
   String get fillFormToRegister   => _t.fillFormToRegister;
   String get passwordMismatch     => _t.passwordMismatch;
+  String get codeSent             => _t.codeSent;
+  String get verifyPhone          => _t.verifyPhone;
+  String get verify               => _t.verify;
+  String get resend               => _t.resend;
+  String get didntReceiveCode     => _t.didntReceiveCode;
+  String get codeSentTo           => _t.codeSentTo;
 
   // Helpers
   String transactionCount(int count) =>

@@ -299,6 +299,7 @@ class AuthService {
     required String password,
     required String countryCode,
     required String otpCode,
+    required String companyId,  // ← Ajouté
   }) async {
     try {
       print('📝 signupWithOtp: $phone');
@@ -306,23 +307,26 @@ class AuthService {
       final body = {
         'phoneNumber': phone,
         'firstname': fullName,
-        'password': password,
-        'countryCode': countryCode,
         'username': phone,
-        'validationCode': otpCode,  // Code SMS
-        'role': 'client',
-        'compagnie': 1,  // Par défaut
+        'email': '',
+        'role': 'CLIENT',
+        'compagnie': int.tryParse(companyId) ?? 1,  // ← Utilise companyId
+        'countryCode': countryCode,
+        'generatedPassword': password,
+        'validationCode': otpCode,
+        'phoneVerified': true,
       };
 
       print('📤 Signup Body: ${jsonEncode(body)}');
 
       final response = await http.post(
-        Uri.parse('$baseUrl$registerEndpoint'),
+        Uri.parse('$baseUrl/api/auth/signup'),
         headers: await _getHeaders(),
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
       print('📥 Status: ${response.statusCode}');
+      print('📥 Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);

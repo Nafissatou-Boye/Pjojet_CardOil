@@ -1,6 +1,4 @@
-// lib/models/transaction_model.dart
 
-// lib/models/transaction_model.dart
 
 class TransactionModel {
   final String id;

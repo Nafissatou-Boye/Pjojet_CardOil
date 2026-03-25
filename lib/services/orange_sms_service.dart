@@ -1,16 +1,3 @@
-// lib/services/orange_sms_service.dart
-//
-// ✅ Service OTP complet avec Orange SMS Pro
-// Architecture :
-//   1. Génère un code OTP à 6 chiffres localement
-//   2. Envoie via API Orange SMS Pro (HTTP direct depuis Flutter)
-//   3. Stocke le code + expiration dans Firestore pour vérification
-//   4. Vérifie le code saisi par l'utilisateur
-//
-// ⚠️  IMPORTANT SÉCURITÉ :
-//   - Ne mettez PAS votre API key en dur dans le code en production
-//   - Utilisez flutter_dotenv ou Firebase Remote Config pour la stocker
-//   - Ce fichier montre la structure — remplacez les valeurs par les vôtres
 
 import 'dart:convert';
 import 'dart:math';
@@ -25,7 +12,7 @@ class OrangeSmsService {
   // ── Remplacez par vos vraies credentials Orange SMS Pro ──────────────
   static const String _clientId = 'VOTRE_CLIENT_ID';
   static const String _clientSecret = 'VOTRE_CLIENT_SECRET';
-  static const String _senderName = 'GPay';    // Nom affiché sur le SMS
+  static const String _senderName = 'GPay';    
   static const String _senderNumber = '+221XXXXXXXXX'; // Votre numéro Orange
 
   // URLs API Orange
