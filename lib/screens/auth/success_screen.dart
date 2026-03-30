@@ -1,7 +1,6 @@
-// lib/screens/auth/success_screen.dart
-
 import 'package:flutter/material.dart';
 import '../../langue/app_localizations.dart';
+import '../client/client_dashboard.dart';
 
 class SuccessScreen extends StatefulWidget {
   const SuccessScreen({super.key});
@@ -19,18 +18,17 @@ class _SuccessScreenState extends State<SuccessScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _scaleAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.elasticOut,
-    );
+      duration: const Duration(milliseconds: 600), vsync: this);
+    _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
     _controller.forward();
 
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const ClientDashboard()),
+          (route) => false,
+        );
       }
     });
   }
@@ -52,64 +50,32 @@ class _SuccessScreenState extends State<SuccessScreen>
         appBar: AppBar(
           backgroundColor: const Color(0xFF2563EB),
           elevation: 0,
-          title: Text(
-            t.registrationTitle,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          title: Text(t.registrationTitle,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           centerTitle: true,
+          automaticallyImplyLeading: false,
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 40),
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4ADE80), Color(0xFF22C55E)],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withOpacity(0.5),
-                        blurRadius: 30,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 70,
-                    color: Colors.white,
-                  ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const SizedBox(height: 40),
+            ScaleTransition(
+              scale: _scaleAnimation,
+              child: Container(
+                width: 120, height: 120,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [Color(0xFF4ADE80), Color(0xFF22C55E)]),
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.5), blurRadius: 30, spreadRadius: 10)],
                 ),
+                child: const Icon(Icons.check_rounded, size: 70, color: Colors.white),
               ),
-              const SizedBox(height: 40),
-              Text(
-                t.registrationSuccess,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                t.redirecting,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+            Text(t.registrationSuccess,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
+            const SizedBox(height: 12),
+            Text(t.redirecting, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+          ]),
         ),
       ),
     );

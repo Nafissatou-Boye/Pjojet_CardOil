@@ -1,7 +1,5 @@
 // lib/models/corporate_employee_model.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class CorporateEmployeeModel {
   final String id;
   final String userId;
@@ -17,7 +15,7 @@ class CorporateEmployeeModel {
   final DateTime createdAt;
   final String? department;
   final String? position;
-  final String accountType; // 👈 AJOUTÉ : 'capped' | 'cumulative'
+  final String accountType; // 'capped' | 'cumulative'
 
   CorporateEmployeeModel({
     required this.id,
@@ -34,33 +32,59 @@ class CorporateEmployeeModel {
     required this.createdAt,
     this.department,
     this.position,
-    this.accountType = 'capped', // 👈 défaut : plafonné
+    this.accountType = 'capped',
   });
 
-  factory CorporateEmployeeModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
+  // ═══════════════════════════════════════════════════════════
+  // ✅ FROM API (remplace Firestore)
+  // ═══════════════════════════════════════════════════════════
+  factory CorporateEmployeeModel.fromJson(Map<String, dynamic> json) {
     return CorporateEmployeeModel(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      enterpriseId: data['enterpriseId'] ?? '',
-      enterpriseName: data['enterpriseName'] ?? '',
-      fullName: data['fullName'] ?? '',
-      email: data['email'] ?? '',
-      employeeNumber: data['employeeNumber'] ?? '',
-      monthlyLimit: (data['monthlyLimit'] ?? 0).toDouble(),
-      currentMonthUsage: (data['currentMonthUsage'] ?? 0).toDouble(),
-      isActive: data['isActive'] ?? true,
-      profileLocked: data['profileLocked'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      department: data['department'],
-      position: data['position'],
-      accountType: data['accountType'] ?? 'capped', // 👈 AJOUTÉ
+      id: json['id']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      enterpriseId: json['enterpriseId']?.toString() ??
+          json['compagnie']?.toString() ?? '',
+      enterpriseName: json['enterpriseName']?.toString() ??
+          json['compagnieName']?.toString() ?? '',
+      fullName: json['fullName']?.toString() ??
+          json['firstname']?.toString() ??
+          json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      employeeNumber: json['employeeNumber']?.toString() ??
+          json['matricule']?.toString() ?? '',
+      monthlyLimit: (json['monthlyLimit'] ??
+              json['plafond'] ??
+              json['balance'] ??
+              json['solde'] ??
+              0)
+          .toDouble(),
+      currentMonthUsage: (json['currentMonthUsage'] ??
+              json['depensesMois'] ??
+              0)
+          .toDouble(),
+      isActive: json['isActive'] ?? json['actif'] ?? true,
+      profileLocked: json['profileLocked'] ?? true,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString()) ??
+              DateTime.now()
+          : DateTime.now(),
+      department: json['department']?.toString() ??
+          json['departement']?.toString(),
+      position:
+          json['position']?.toString() ?? json['poste']?.toString(),
+      accountType:
+          json['accountType']?.toString() ??
+          json['typeCompte']?.toString() ??
+          'capped',
     );
   }
 
-  Map<String, dynamic> toFirestore() {
+  // ═══════════════════════════════════════════════════════════
+  // ✅ TO API
+  // ═══════════════════════════════════════════════════════════
+  Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'userId': userId,
       'enterpriseId': enterpriseId,
       'enterpriseName': enterpriseName,
@@ -71,39 +95,45 @@ class CorporateEmployeeModel {
       'currentMonthUsage': currentMonthUsage,
       'isActive': isActive,
       'profileLocked': profileLocked,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
       'department': department,
       'position': position,
-      'accountType': accountType, // 👈 AJOUTÉ
+      'accountType': accountType,
     };
   }
 
-  // ── Getters communs ──
-  bool get isCapped => accountType == 'capped';
-  bool get isCumulative => accountType == 'cumulative';
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 LOGIQUE MÉTIER (inchangée)
+  // ═══════════════════════════════════════════════════════════
 
-  // ── Getters Plafonné (capped) ──
+  bool get isCapped =>
+      accountType == 'capped' || accountType == 'CAPPED';
+
+  bool get isCumulative =>
+      accountType == 'cumulative' || accountType == 'CUMULATIVE';
+
+  // ── Plafonné ──
   double get remainingBalance => monthlyLimit - currentMonthUsage;
-  bool get hasReachedLimit => currentMonthUsage >= monthlyLimit;
-  double get usagePercentage =>
-      monthlyLimit > 0
-          ? (currentMonthUsage / monthlyLimit * 100).clamp(0, 100)
-          : 0;
 
-  // Couleur de la barre selon consommation
-  // 🟢 0–40% | 🟡 40–80% | 🔴 80–100%
+  bool get hasReachedLimit => currentMonthUsage >= monthlyLimit;
+
+  double get usagePercentage => monthlyLimit > 0
+      ? (currentMonthUsage / monthlyLimit * 100).clamp(0, 100)
+      : 0;
+
   String get usageLevel {
     if (usagePercentage < 40) return 'green';
     if (usagePercentage < 80) return 'yellow';
     return 'red';
   }
 
-  // ── Getters Cumulatif (cumulative) ──
-  // Pour le cumulatif, monthlyLimit = solde total disponible
-  // currentMonthUsage = dépenses du mois
-  double get cumulativeBalance => monthlyLimit; // solde total
+  // ── Cumulatif ──
+  double get cumulativeBalance => monthlyLimit;
   double get cumulativeUsed => currentMonthUsage;
 
+  // ═══════════════════════════════════════════════════════════
+  // 🔁 COPY WITH
+  // ═══════════════════════════════════════════════════════════
   CorporateEmployeeModel copyWith({
     String? userId,
     String? enterpriseId,
@@ -118,7 +148,7 @@ class CorporateEmployeeModel {
     DateTime? createdAt,
     String? department,
     String? position,
-    String? accountType, // 👈 AJOUTÉ
+    String? accountType,
   }) {
     return CorporateEmployeeModel(
       id: id,
@@ -129,13 +159,14 @@ class CorporateEmployeeModel {
       email: email ?? this.email,
       employeeNumber: employeeNumber ?? this.employeeNumber,
       monthlyLimit: monthlyLimit ?? this.monthlyLimit,
-      currentMonthUsage: currentMonthUsage ?? this.currentMonthUsage,
+      currentMonthUsage:
+          currentMonthUsage ?? this.currentMonthUsage,
       isActive: isActive ?? this.isActive,
       profileLocked: profileLocked ?? this.profileLocked,
       createdAt: createdAt ?? this.createdAt,
       department: department ?? this.department,
       position: position ?? this.position,
-      accountType: accountType ?? this.accountType, // 👈 AJOUTÉ
+      accountType: accountType ?? this.accountType,
     );
   }
 }

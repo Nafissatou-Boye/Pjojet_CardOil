@@ -46,8 +46,6 @@ class PromotionService {
     return [];
   }
 
-  // ─── STREAM PROMOTIONS ACTIVES (AVEC LIMITE) ─────────────────
-
   Stream<List<PromotionModel>> getPromotionsStream(
     String companyId, {
     int limit = 10,
@@ -61,7 +59,6 @@ class PromotionService {
     );
   }
 
-  // Future version (utilisée dans client_dashboard)
   Future<List<PromotionModel>> getPromotions(
     String companyId, {
     int limit = 10,
@@ -74,7 +71,6 @@ class PromotionService {
         token: token,
       );
 
-  // ─── STREAM TOUTES LES PROMOTIONS ────────────────────────────
   Stream<List<PromotionModel>> getAllPromotionsStream(
     String companyId, {
     String? token,
@@ -89,7 +85,7 @@ class PromotionService {
   }) =>
       _fetchPromotions(companyId: companyId, token: token);
 
-  // ─── STREAM UNE PROMOTION PAR ID ─────────────────────────────
+
   Stream<PromotionModel?> getPromotionStream(
     String promotionId, {
     String? token,
@@ -119,7 +115,6 @@ class PromotionService {
     return null;
   }
 
-  // ─── VÉRIFIER SI L'UTILISATEUR A DÉJÀ PARTICIPÉ ──────────────
   Future<bool> hasParticipated(
     String promotionId, {
     String? token,
@@ -142,8 +137,7 @@ class PromotionService {
     }
     return false;
   }
-
-  // ─── PARTICIPER À UNE PROMOTION ──────────────────────────────
+  
   Future<bool> participatePromotion(
     String promotionId, {
     String? token,

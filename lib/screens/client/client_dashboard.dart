@@ -88,9 +88,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DASHBOARD HOME
-// ═══════════════════════════════════════════════════════════════════════════
+
 class DashboardHome extends StatefulWidget {
   const DashboardHome({super.key});
 
@@ -116,7 +114,7 @@ class _DashboardHomeState extends State<DashboardHome> {
     final authService = Provider.of<AuthService>(context, listen: false);
     final cardService = CardService();
 
-    // Charger user et carte en parallèle
+   
     final results = await Future.wait([
       authService.loadUserProfile(),
       cardService.getMyCard(),
@@ -185,9 +183,7 @@ class _DashboardHomeState extends State<DashboardHome> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BLUE HEADER
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _BlueHeader extends StatelessWidget {
   final UserModel user;
   final CardModel? card;   // ✅ carte depuis API
@@ -237,9 +233,7 @@ class _BlueHeader extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TOP ROW
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _TopRow extends StatelessWidget {
   final UserModel user;
   const _TopRow({required this.user});
@@ -299,9 +293,7 @@ class _TopRow extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// COMPANY BADGE
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _CompanyBadge extends StatelessWidget {
   final UserModel user;
   final CompanyModel? company;
@@ -348,19 +340,17 @@ class _CompanyBadge extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BALANCE CARD — ✅ utilise CardModel (API) en priorité
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _BalanceCard extends StatelessWidget {
   final UserModel user;
-  final CardModel? card; // ✅ données depuis /api/cartes/me
+  final CardModel? card;
   const _BalanceCard({required this.user, required this.card});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
 
-    // ✅ Solde : carte API en priorité, sinon user.balance
+   
     final balance = card?.balance ?? user.balance;
     final points = card?.loyaltyPoints ?? user.currentCompanyPoints;
     final isVerified = card?.isActive ?? user.phoneVerified;
@@ -406,7 +396,7 @@ class _BalanceCard extends StatelessWidget {
               const SizedBox(height: 12),
               Divider(color: Colors.white.withOpacity(0.3), height: 1),
               const SizedBox(height: 10),
-              // ✅ Points depuis carte API
+              
               Text('${t.loyaltyPointsLabel} : $points pts',
                   style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 10),
@@ -427,7 +417,7 @@ class _BalanceCard extends StatelessWidget {
                   child: Icon(isVerified ? Icons.check : Icons.close, color: Colors.white, size: 13),
                 ),
               ]),
-              // ✅ Référence carte si disponible
+             
               if (card?.reference.isNotEmpty == true) ...[
                 const SizedBox(height: 8),
                 Text('N° ${card!.reference}',
@@ -441,9 +431,7 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// WHITE CONTENT (inchangé sauf _buildMonthlyExpenses)
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _WhiteContent extends StatelessWidget {
   final UserModel user;
   const _WhiteContent({required this.user});
@@ -559,7 +547,7 @@ class _WhiteContent extends StatelessWidget {
     );
   }
 
-  // ✅ Utilise TransactionService (API) au lieu de Firestore
+
   Widget _buildMonthlyExpenses(BuildContext context, AppLocalizations t) {
     final txService = TransactionService();
 
@@ -636,9 +624,7 @@ class _WhiteContent extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// WIDGETS PARTAGÉS (inchangés)
-// ═══════════════════════════════════════════════════════════════════════════
+
 class WavePainter extends CustomPainter {
   final Color color;
   final double opacity;

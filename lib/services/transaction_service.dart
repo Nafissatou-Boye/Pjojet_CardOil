@@ -1,6 +1,3 @@
-// lib/services/transaction_service.dart
-// ✅ Token Bearer automatique + cache + parsing robuste
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +29,6 @@ class TransactionService {
     return [];
   }
 
-  // ── GET /api/transactions/me ───────────────────────────────────────────────
   Future<List<TransactionModel>> getTransactions() async {
     try {
       final response = await http.get(
@@ -70,7 +66,7 @@ class TransactionService {
     return [];
   }
 
-  // ── GET /api/transactions/{id} ─────────────────────────────────────────────
+
   Stream<ReceiptModel?> getReceiptByTransaction(String transactionId) async* {
     yield await fetchReceipt(transactionId: transactionId);
   }
@@ -93,7 +89,6 @@ class TransactionService {
     return null;
   }
 
-  // ── GET /api/transactions/transactionsForGerantAndPompiste ────────────────
   Future<List<TransactionModel>> getTransactionsForGerantAndPompiste() async {
     try {
       final response = await http.get(
@@ -109,7 +104,6 @@ class TransactionService {
     return [];
   }
 
-  // ── GET /api/transactions/transactionsForCompagnie/{id} ──────────────────
   Future<List<TransactionModel>> getTransactionsForCompagnie({
     required String companyId,
   }) async {
@@ -127,7 +121,6 @@ class TransactionService {
     return [];
   }
 
-  // ── POST /api/transactions/vente ──────────────────────────────────────────
   Future<Map<String, dynamic>> createVente({
     required String username,
     required int clientId,

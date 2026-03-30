@@ -1,5 +1,3 @@
-// lib/screens/client/client_receipt_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -41,7 +39,7 @@ class ClientReceiptScreen extends StatelessWidget {
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    // ── En-tête orange ──
+                    
                     Container(
                       margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                       decoration: const BoxDecoration(
@@ -108,7 +106,7 @@ class ClientReceiptScreen extends StatelessWidget {
                       ),
                     ),
 
-                    // ── Corps blanc ──
+                  
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                       child: Container(
@@ -257,7 +255,7 @@ class ClientReceiptScreen extends StatelessWidget {
               ),
             ),
 
-            // ── Bouton télécharger ──
+          
             Container(
               color: const Color(0xFFF0F0F0),
               padding: EdgeInsets.fromLTRB(

@@ -64,7 +64,7 @@ class CardService {
   static const String _tokenKey = 'auth_token';
   static const String _cardCacheKey = 'cached_card';
 
-  // ── Headers avec Bearer token
+ 
   Future<Map<String, String>> _headers() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
@@ -75,7 +75,7 @@ class CardService {
     };
   }
 
-  // Carte + solde de l'utilisateur connecté
+  
   Future<Map<String, dynamic>> getMyCard() async {
     try {
       final response = await http.get(
@@ -104,7 +104,7 @@ class CardService {
         return {'success': false, 'error': 'Erreur serveur (${response.statusCode})'};
       }
     } catch (e) {
-      // En cas d'erreur réseau, retourner le cache
+     
       final cached = await _getCachedCard();
       if (cached != null) {
         return {'success': true, 'card': cached, 'fromCache': true};

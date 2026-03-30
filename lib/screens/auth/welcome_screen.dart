@@ -1,9 +1,3 @@
-// lib/screens/auth/welcome_screen.dart
-// ✅ Votre design original INTACT
-// ✅ Sélecteur langue FR / EN / AR ajouté en haut à droite
-// ✅ Tous les textes traduits selon la langue choisie
-// ✅ RTL automatique pour l'arabe
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../langue/app_localizations.dart';
@@ -13,12 +7,12 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Récupère les traductions et le provider
+    
     final t = AppLocalizations.of(context);
     final localeProvider = Provider.of<AppLocaleProvider>(context);
 
     return Directionality(
-      textDirection: t.textDirection, // ✅ RTL si arabe
+      textDirection: t.textDirection,
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
@@ -40,7 +34,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const Spacer(),
 
-                // ── Logo essence (inchangé) ──
+               
                 const Icon(
                   Icons.local_gas_station_rounded,
                   size: 90,
@@ -49,7 +43,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // ── CARD OIL (inchangé) ──
+           
                 const Text(
                   'CARD OIL',
                   style: TextStyle(
@@ -62,7 +56,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                // ✅ "Bienvenue" traduit
+              
                 Text(
                   t.welcomeGreeting,
                   style: const TextStyle(
@@ -74,7 +68,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                // ✅ Sous-titre traduit
+               
                 Text(
                   t.welcomeSubtitle,
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
@@ -83,7 +77,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 60),
 
-                // ✅ Bouton Se connecter traduit
+               
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -109,7 +103,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // ✅ Bouton S'inscrire traduit
+               
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -132,7 +126,7 @@ class WelcomeScreen extends StatelessWidget {
 
                 const Spacer(),
 
-                // ── Signature SenPay (inchangée) ──
+               
                 Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: Row(
@@ -189,9 +183,7 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SÉLECTEUR DE LANGUE (bouton + bottom sheet)
-// ═══════════════════════════════════════════════════════════════════════════
+
 
 class _LanguageSelector extends StatelessWidget {
   final Locale currentLocale;

@@ -1,9 +1,10 @@
 // lib/models/notification_model.dart
+// ✅ Aucune dépendance Firebase — 100% pur Dart
 
 enum NotificationType {
   transaction,
   promotion,
-  reminder, // ✅ conservé pour compatibilité notifications_screen
+  reminder,
   system,
   alert,
 }

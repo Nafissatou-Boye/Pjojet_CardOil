@@ -1,5 +1,3 @@
-// lib/services/company_service.dart
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/company_model.dart';
@@ -7,8 +5,7 @@ import '../models/company_model.dart';
 class CompanyService {
   static const String _baseUrl = 'https://api.cardoil.io';
 
-  // ─── RÉCUPÉRER UNE COMPAGNIE PAR ID ──────────────────────────
-  // GET /api/companies/{id}
+
   Future<CompanyModel?> getCompany(String companyId, {String? token}) async {
     try {
       final response = await http.get(
@@ -29,8 +26,7 @@ class CompanyService {
     return null;
   }
 
-  // ─── LISTER TOUTES LES COMPAGNIES ────────────────────────────
-  // GET /api/companies
+
   Future<List<CompanyModel>> getAllCompanies({String? token}) async {
     try {
       final response = await http.get(
@@ -54,8 +50,7 @@ class CompanyService {
     return [];
   }
 
-  // ─── CRÉER UNE COMPAGNIE ─────────────────────────────────────
-  // POST /api/companies
+
   Future<Map<String, dynamic>> createCompany({
     required String token,
     required Map<String, dynamic> companyData,
@@ -79,8 +74,7 @@ class CompanyService {
     }
   }
 
-  // ─── METTRE À JOUR UNE COMPAGNIE ─────────────────────────────
-  // PUT /api/companies/{id}
+
   Future<Map<String, dynamic>> updateCompany({
     required String token,
     required String companyId,
@@ -105,8 +99,7 @@ class CompanyService {
     }
   }
 
-  // ─── SUPPRIMER UNE COMPAGNIE ──────────────────────────────────
-  // DELETE /api/companies/{id}
+
   Future<bool> deleteCompany({
     required String token,
     required String companyId,
@@ -127,7 +120,7 @@ class CompanyService {
     }
   }
 
-  // ─── COMPATIBILITÉ STREAM ─────────────────────────────────────
+ 
   Stream<CompanyModel?> getCompanyStream(String companyId,
       {String? token}) async* {
     yield await getCompany(companyId, token: token);

@@ -1,4 +1,13 @@
-// lib/services/auth_service_complete.dart
+// lib/services/auth_service.dart
+//
+// FIXES :
+//  1. validatePhone → 404 : tente /validate-phone puis /registerValidateur
+//     Si les deux sont 404, on skip le SMS et on va direct au signup
+//  2. signInWithLogin → 500 de /compte-entreprise :
+//     Le 500 est un bug BACKEND (doublon en base). On l'intercepte pour
+//     ne pas bloquer l'utilisateur et on affiche un message clair.
+//  3. loadUserProfile → gère 500 avec fallback cache
+//  4. Réponse API flexible (user dans root ou dans 'user')
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -6,399 +15,311 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 
 class AuthService {
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONFIGURATION API CARDOIL
-  // ═══════════════════════════════════════════════════════════════════════════
-  static const String baseUrl = 'https://api.cardoil.io';  // HTTPS ✅
+  static const String baseUrl = 'https://api.cardoil.io';
   static const String loginEndpoint = '/api/auth/login';
   static const String registerEndpoint = '/api/auth/signup';
   static const String profileEndpoint = '/api/users/me';
-  
-  // Storage keys
+
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
   static const String expiresKey = 'token_expires';
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HEADERS
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── Headers ────────────────────────────────────────────────────────────────
   Future<Map<String, String>> _getHeaders({bool needsAuth = false}) async {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
+    final h = {'Content-Type': 'application/json', 'Accept': 'application/json'};
     if (needsAuth) {
       final token = await getToken();
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
-      }
+      if (token != null) h['Authorization'] = 'Bearer $token';
     }
-
-    return headers;
+    return h;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONNEXION PAR TÉLÉPHONE
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── CONNEXION TÉLÉPHONE ────────────────────────────────────────────────────
   Future<Map<String, dynamic>> checkCredentials({
     required String phone,
     required String password,
   }) async {
-    try {
-      print('🔐 checkCredentials: $phone');
-      
-      final body = {
-        'phoneNumber': phone,
-        'password': password,
-        'loginIdentifier': phone,
-      };
-
-      print('📤 Request: $baseUrl$loginEndpoint');
-      print('📤 Body: ${jsonEncode(body)}');
-
-      final response = await http.post(
-        Uri.parse('$baseUrl$loginEndpoint'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Body: ${response.body}');
-
-      if (response.body.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Le serveur n\'a renvoyé aucune donnée',
-        };
-      }
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        
-        if (!data.containsKey('user') || !data.containsKey('token')) {
-          return {
-            'success': false,
-            'error': 'Réponse du serveur mal formatée',
-          };
-        }
-
-        final authResponse = AuthResponse.fromJson(data);
-        await _saveAuthData(authResponse);
-
-        return {
-          'success': true,
-          'user': authResponse.user,
-          'token': authResponse.token,
-        };
-      } else if (response.statusCode == 401) {
-        return {
-          'success': false,
-          'error': 'Téléphone ou mot de passe incorrect',
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Erreur de connexion (${response.statusCode})',
-        };
-      }
-    } catch (e) {
-      print('❌ Error: $e');
-      return {
-        'success': false,
-        'error': 'Erreur réseau: $e',
-      };
-    }
+    return _doLogin({'phoneNumber': phone, 'password': password, 'loginIdentifier': phone});
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONNEXION PAR TÉLÉPHONE (Alias pour checkCredentials)
-  // ═══════════════════════════════════════════════════════════════════════════
-  Future<Map<String, dynamic>> signInWithPhone({
-    required String phone,
-    required String password,
-    String? countryCode,
-  }) async {
-    return await checkCredentials(phone: phone, password: password);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONNEXION PAR LOGIN (Corporate)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── CONNEXION LOGIN (Corporate) ────────────────────────────────────────────
   Future<Map<String, dynamic>> signInWithLogin({
     required String login,
     required String password,
   }) async {
+    print('🔐 signInWithLogin: $login');
+    return _doLogin({'username': login, 'loginIdentifier': login, 'password': password});
+  }
+
+  Future<Map<String, dynamic>> signInWithPhone({
+    required String phone,
+    required String password,
+    String? countryCode,
+  }) async => checkCredentials(phone: phone, password: password);
+
+  // ── LOGIN INTERNE ─────────────────────────────────────────────────────────
+  Future<Map<String, dynamic>> _doLogin(Map<String, dynamic> body) async {
     try {
-      print('🔐 signInWithLogin: $login');
-      
-      final body = {
-        'username': login,
-        'loginIdentifier': login,
-        'password': password,
-      };
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl$loginEndpoint'),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
 
-      final response = await http.post(
-        Uri.parse('$baseUrl$loginEndpoint'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status: ${response.statusCode}');
+      print('📥 Login Status: ${response.statusCode}');
 
       if (response.body.isEmpty) {
-        return {
-          'success': false,
-          'error': 'Le serveur n\'a renvoyé aucune donnée',
-        };
+        return {'success': false, 'error': 'Réponse vide du serveur'};
       }
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final authResponse = AuthResponse.fromJson(data);
-        await _saveAuthData(authResponse);
+        final data = _decode(response.body);
+        final token = _extractToken(data);
+        final user = _extractUser(data);
 
-        return {
-          'success': true,
-          'user': authResponse.user,
-          'token': authResponse.token,
-        };
-      } else if (response.statusCode == 401) {
+        await _saveAuthData(AuthResponse(
+          user: user,
+          token: token,
+          expiresIn: (data['expiresIn'] as num?)?.toInt() ?? 86400,
+        ));
+        print('✅ Auth data saved');
+        return {'success': true, 'user': user, 'token': token};
+      }
+
+      if (response.statusCode == 401) {
+        return {'success': false, 'error': 'Identifiant ou mot de passe incorrect'};
+      }
+
+      // FIX : 500 de /compte-entreprise remonte parfois ici
+      if (response.statusCode == 500) {
         return {
           'success': false,
-          'error': 'Login ou mot de passe incorrect',
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Erreur de connexion (${response.statusCode})',
+          'error': 'Erreur serveur temporaire. Contactez l\'administrateur.',
         };
       }
-    } catch (e) {
+
+      final data = _decode(response.body);
       return {
         'success': false,
-        'error': 'Erreur réseau: $e',
+        'error': data['message']?.toString() ?? 'Erreur (${response.statusCode})',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CHARGER PROFIL UTILISATEUR (COMPATIBLE AVEC TES ÉCRANS)
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   Future<Map<String, dynamic>> loadUserProfile() async {
     try {
-      print('📂 Loading user profile...');
-      
-      // 1. Essayer de charger depuis le cache d'abord
-      final cachedUser = await getCurrentUser();
-      if (cachedUser != null) {
-        print('✅ User loaded from cache');
-        return {
-          'success': true,
-          'user': cachedUser,
-        };
+      final cached = await getCurrentUser();
+
+      // Toujours retourner le cache immédiatement, rafraîchir en arrière-plan
+      if (cached != null) {
+        _refreshProfileSilently();
+        return {'success': true, 'user': cached};
       }
 
-      // 2. Si pas de cache, appeler l'API
       final token = await getToken();
-      if (token == null) {
-        return {
-          'success': false,
-          'error': 'Non connecté',
-        };
-      }
+      if (token == null) return {'success': false, 'error': 'Non connecté'};
 
-      final response = await http.get(
-        Uri.parse('$baseUrl$profileEndpoint'),
-        headers: await _getHeaders(needsAuth: true),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl$profileEndpoint'),
+            headers: await _getHeaders(needsAuth: true),
+          )
+          .timeout(const Duration(seconds: 15));
 
       print('📥 Profile Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final user = UserModel.fromApiJson(data['user']);
-        
-        // Sauvegarder en cache
+        final data = _decode(response.body);
+        final user = _extractUser(data);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(userKey, user.toJsonString());
+        return {'success': true, 'user': user};
+      }
 
-        return {
-          'success': true,
-          'user': user,
-        };
-      } else if (response.statusCode == 401) {
+      if (response.statusCode == 401) {
         await signOut();
+        return {'success': false, 'error': 'Session expirée'};
+      }
+
+    
+      if (response.statusCode == 500) {
+        print('⚠️ Profile 500 — fallback cache');
+        if (cached != null) return {'success': true, 'user': cached};
         return {
           'success': false,
-          'error': 'Session expirée',
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Erreur lors de la récupération du profil',
+          'error': 'Erreur serveur. Réessayez dans quelques instants.',
         };
       }
+
+      return {'success': false, 'error': 'Erreur (${response.statusCode})'};
     } catch (e) {
-      print('❌ loadUserProfile error: $e');
-      return {
-        'success': false,
-        'error': 'Erreur réseau: $e',
-      };
+      final cached = await getCurrentUser();
+      if (cached != null) return {'success': true, 'user': cached};
+      return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // VALIDATION TÉLÉPHONE + ENVOI SMS (Orange SMS API)
-  // ═══════════════════════════════════════════════════════════════════════════
-  Future<Map<String, dynamic>> validatePhone({
-    required String phone,
-  }) async {
+  Future<void> _refreshProfileSilently() async {
     try {
-      print('📱 validatePhone: $phone');
-      
-      final body = {
-        'phoneNumber': phone,
-      };
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/validate-phone'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status: ${response.statusCode}');
-
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl$profileEndpoint'),
+            headers: await _getHeaders(needsAuth: true),
+          )
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': 'Code SMS envoyé',
-        };
-      } else {
-        final data = jsonDecode(response.body);
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Erreur lors de l\'envoi du SMS',
-        };
+        final user = _extractUser(_decode(response.body));
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(userKey, user.toJsonString());
       }
-    } catch (e) {
-      print('❌ validatePhone error: $e');
-      return {
-        'success': false,
-        'error': 'Erreur réseau: $e',
-      };
-    }
+    } catch (_) {}
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // INSCRIPTION AVEC CODE OTP
-  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<Map<String, dynamic>> validatePhone({required String phone}) async {
+    print('📱 validatePhone: $phone');
+
+    for (final endpoint in [
+      '/api/auth/validate-phone',
+      '/api/auth/registerValidateur',
+    ]) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('$baseUrl$endpoint'),
+              headers: await _getHeaders(),
+              body: jsonEncode({'phoneNumber': phone}),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        print('📥 $endpoint → ${response.statusCode}');
+
+        if (response.statusCode == 404) continue; 
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return {'success': true, 'message': 'Code SMS envoyé'};
+        }
+
+        final data = _decode(response.body);
+        return {
+          'success': false,
+          'error': data['message']?.toString() ??
+              'Erreur ${response.statusCode}',
+        };
+      } catch (e) {
+        return {'success': false, 'error': 'Erreur réseau: $e'};
+      }
+    }
+
+   
+    print('⚠️ Aucun endpoint OTP actif — skip validation SMS');
+    return {
+      'success': true,
+      'skipOtp': true,
+      'message': 'Validation SMS non disponible — inscription directe',
+    };
+  }
+
+ 
   Future<Map<String, dynamic>> signupWithOtp({
     required String phone,
     required String fullName,
     required String password,
     required String countryCode,
     required String otpCode,
-    required String companyId,  // ← Ajouté
+    required String companyId,
   }) async {
     try {
-      print('📝 signupWithOtp: $phone');
-      
+      print('📝 signupWithOtp: $phone (otpCode: $otpCode)');
+
       final body = {
         'phoneNumber': phone,
         'firstname': fullName,
         'username': phone,
         'email': '',
         'role': 'CLIENT',
-        'compagnie': int.tryParse(companyId) ?? 1,  // ← Utilise companyId
+        'compagnie': int.tryParse(companyId) ?? 1,
         'countryCode': countryCode,
         'generatedPassword': password,
+        'password': password,
         'validationCode': otpCode,
-        'phoneVerified': true,
+        'phoneVerified': otpCode.isNotEmpty,
       };
 
-      print('📤 Signup Body: ${jsonEncode(body)}');
+      print('📤 Body: ${jsonEncode(body)}');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/signup'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl$registerEndpoint'),
+            headers: await _getHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 20));
 
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Body: ${response.body}');
+      print('📥 Signup Status: ${response.statusCode}');
+      print('📥 Signup Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        final authResponse = AuthResponse.fromJson(data);
-        await _saveAuthData(authResponse);
+        final data = _decode(response.body);
+        final token = _extractToken(data);
+
+        if (token.isNotEmpty) {
+          final user = _extractUser(data);
+          await _saveAuthData(
+              AuthResponse(user: user, token: token, expiresIn: 86400));
+          return {'success': true, 'user': user, 'token': token};
+        }
 
         return {
           'success': true,
-          'user': authResponse.user,
-          'token': authResponse.token,
-        };
-      } else {
-        final data = jsonDecode(response.body);
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Erreur d\'inscription',
+          'requiresLogin': true,
+          'message': 'Compte créé ! Connectez-vous avec vos identifiants.',
         };
       }
+
+      final data = _decode(response.body);
+      return {
+        'success': false,
+        'error': data['message']?.toString() ?? 'Erreur d\'inscription',
+      };
     } catch (e) {
       print('❌ signupWithOtp error: $e');
-      return {
-        'success': false,
-        'error': 'Erreur réseau: $e',
-      };
+      return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENVOYER LE CODE OTP
-  // ═══════════════════════════════════════════════════════════════════════════
-  Future<Map<String, dynamic>> resendOtp({
-    required String phone,
-  }) async {
+
+  Future<Map<String, dynamic>> resendOtp({required String phone}) async {
     try {
-      print('🔄 resendOtp: $phone');
-      
-      final body = {
-        'phoneNumber': phone,
-      };
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/auth/resend-code'),
+            headers: await _getHeaders(),
+            body: jsonEncode({'phoneNumber': phone}),
+          )
+          .timeout(const Duration(seconds: 15));
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/auth/resend-code'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      print('📥 resendOtp: ${response.statusCode}');
 
-      print('📥 Status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': 'Code renvoyé',
-        };
-      } else {
-        final data = jsonDecode(response.body);
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Erreur lors du renvoi du code',
-        };
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {'success': true, 'message': 'Code renvoyé'};
       }
-    } catch (e) {
-      print('❌ resendOtp error: $e');
+      final data = _decode(response.body);
       return {
         'success': false,
-        'error': 'Erreur réseau: $e',
+        'error': data['message']?.toString() ?? 'Erreur renvoi code',
       };
+    } catch (e) {
+      return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // INSCRIPTION
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   Future<Map<String, dynamic>> registerWithPhone({
     required String phone,
     required String fullName,
@@ -408,125 +329,59 @@ class AuthService {
     required String login,
     String userType = 'individual',
   }) async {
-    try {
-      final body = {
-        'phoneNumber': phone,
-        'firstname': fullName,
-        'username': login,
-        'password': password,
-        'countryCode': country,
-        'compagnie': int.tryParse(selectedCompagnie) ?? 0,
-        'role': userType == 'corporate' ? 'corporate' : 'client',
-      };
-
-      final response = await http.post(
-        Uri.parse('$baseUrl$registerEndpoint'),
-        headers: await _getHeaders(),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        final authResponse = AuthResponse.fromJson(data);
-        await _saveAuthData(authResponse);
-
-        return {
-          'success': true,
-          'user': authResponse.user,
-          'token': authResponse.token,
-        };
-      } else {
-        final data = jsonDecode(response.body);
-        return {
-          'success': false,
-          'error': data['message'] ?? 'Erreur d\'inscription',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'error': 'Erreur réseau: $e',
-      };
-    }
+    return signupWithOtp(
+      phone: phone,
+      fullName: fullName,
+      password: password,
+      countryCode: country,
+      otpCode: '',
+      companyId: selectedCompagnie,
+    );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SAUVEGARDER AUTH DATA
-  // ═══════════════════════════════════════════════════════════════════════════
-  Future<void> _saveAuthData(AuthResponse authResponse) async {
+ 
+  Future<void> _saveAuthData(AuthResponse r) async {
     final prefs = await SharedPreferences.getInstance();
-    
-    await prefs.setString(tokenKey, authResponse.token);
-    await prefs.setString(userKey, authResponse.user.toJsonString());
-    
-    final expiresAt = DateTime.now().add(Duration(seconds: authResponse.expiresIn));
-    await prefs.setString(expiresKey, expiresAt.toIso8601String());
-
-    print('✅ Auth data saved');
+    await prefs.setString(tokenKey, r.token);
+    await prefs.setString(userKey, r.user.toJsonString());
+    final exp = DateTime.now().add(Duration(seconds: r.expiresIn));
+    await prefs.setString(expiresKey, exp.toIso8601String());
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RÉCUPÉRER TOKEN
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(tokenKey);
-    
     if (token != null) {
-      final expiresStr = prefs.getString(expiresKey);
-      if (expiresStr != null) {
-        final expiresAt = DateTime.parse(expiresStr);
-        if (DateTime.now().isAfter(expiresAt)) {
-          await signOut();
-          return null;
-        }
-      }
-    }
-    
-    return token;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RÉCUPÉRER UTILISATEUR ACTUEL
-  // ═══════════════════════════════════════════════════════════════════════════
-  Future<UserModel?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString(userKey);
-    
-    if (userJson != null) {
-      try {
-        return UserModel.fromJsonString(userJson);
-      } catch (e) {
-        print('❌ Error parsing user: $e');
+      final exp = prefs.getString(expiresKey);
+      if (exp != null && DateTime.now().isAfter(DateTime.parse(exp))) {
+        await signOut();
         return null;
       }
     }
-    
+    return token;
+  }
+
+ 
+  Future<UserModel?> getCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString(userKey);
+    if (json != null) {
+      try { return UserModel.fromJsonString(json); } catch (_) {}
+    }
     return null;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STREAM UTILISATEUR
-  // ═══════════════════════════════════════════════════════════════════════════
-  Stream<UserModel?> getCurrentUserStream() async* {
-    final user = await getCurrentUser();
-    yield user;
-  }
-
+  Stream<UserModel?> getCurrentUserStream() async* { yield await getCurrentUser(); }
   Stream<UserModel?> get authStateChanges => getCurrentUserStream();
-  UserModel? get currentUser => null; // Utilise getCurrentUser() à la place
+  UserModel? get currentUser => null;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // VÉRIFIER SI CONNECTÉ
-  // ═══════════════════════════════════════════════════════════════════════════
   Future<bool> isLoggedIn() async {
-    final token = await getToken();
-    return token != null && token.isNotEmpty;
+    final t = await getToken();
+    return t != null && t.isNotEmpty;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // DÉCONNEXION
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(tokenKey);
@@ -535,93 +390,71 @@ class AuthService {
     print('✅ User signed out');
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // HELPERS (compatibilité avec ton code existant)
-  // ═══════════════════════════════════════════════════════════════════════════
   
-  Future<bool> phoneExists(String phone) async {
-    // TODO: Implémenter selon ton API
-    return false;
+  Map<String, dynamic> _decode(String raw) {
+    try {
+      final d = jsonDecode(raw);
+      if (d is Map<String, dynamic>) return d;
+    } catch (_) {}
+    return {};
   }
 
+  String _extractToken(Map<String, dynamic> data) =>
+      data['token']?.toString() ??
+      data['accessToken']?.toString() ??
+      data['jwt']?.toString() ??
+      '';
+
+  UserModel _extractUser(Map<String, dynamic> data) {
+    if (data.containsKey('user') && data['user'] is Map) {
+      return UserModel.fromApiJson(data['user'] as Map<String, dynamic>);
+    }
+    return UserModel.fromApiJson(data);
+  }
+
+ 
   Future<void> updateUserFullName(String fullName) async {
-    // TODO: Implémenter selon ton API
     final user = await getCurrentUser();
-    if (user != null) {
-      final updated = user.copyWith(fullName: fullName);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(userKey, updated.toJsonString());
-    }
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(userKey, user.copyWith(fullName: fullName).toJsonString());
   }
 
-  Future<bool> updateSelectedCompany(String companyName) async {
-    // TODO: Implémenter selon ton API
+  Future<bool> updateSelectedCompany(String name) async {
     final user = await getCurrentUser();
-    if (user != null) {
-      final updated = user.copyWith(selectedCompagnie: companyName);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(userKey, updated.toJsonString());
-      return true;
-    }
-    return false;
+    if (user == null) return false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(userKey, user.copyWith(selectedCompagnie: name).toJsonString());
+    return true;
   }
 
-  Future<void> addLoyaltyPoints(String compagnie, int points) async {
-    // TODO: Implémenter selon ton API
-  }
+  Future<bool> phoneExists(String phone) async => false;
+  Future<void> addLoyaltyPoints(String c, int p) async {}
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CRÉER PROFIL (pour compatibilité)
-  // ═══════════════════════════════════════════════════════════════════════════
   Future<Map<String, dynamic>> createUserProfile({
-    required String uid,
-    required String phone,
-    required String fullName,
-    required String password,
-    required String country,
-    required String selectedCompagnie,
-    required String login,
+    required String uid, required String phone, required String fullName,
+    required String password, required String country,
+    required String selectedCompagnie, required String login,
     required String userType,
-  }) async {
-    return await registerWithPhone(
-      phone: phone,
-      fullName: fullName,
-      password: password,
-      country: country,
-      selectedCompagnie: selectedCompagnie,
-      login: login,
-      userType: userType,
-    );
-  }
+  }) async => registerWithPhone(
+    phone: phone, fullName: fullName, password: password,
+    country: country, selectedCompagnie: selectedCompagnie,
+    login: login, userType: userType,
+  );
 }
 
-/// ═══════════════════════════════════════════════════════════════════════════
-/// AUTH RESPONSE MODEL
-/// ═══════════════════════════════════════════════════════════════════════════
+
+
 class AuthResponse {
   final UserModel user;
   final String token;
   final int expiresIn;
 
-  AuthResponse({
-    required this.user,
-    required this.token,
-    required this.expiresIn,
-  });
+  AuthResponse({required this.user, required this.token, required this.expiresIn});
 
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      user: UserModel.fromApiJson(json['user']),
-      token: json['token'] ?? '',
-      expiresIn: json['expiresIn'] ?? 3600,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'user': user.toApiJson(),
-      'token': token,
-      'expiresIn': expiresIn,
-    };
-  }
+  factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
+    user: UserModel.fromApiJson((json['user'] ?? json) as Map<String, dynamic>),
+    token: json['token']?.toString() ?? '',
+    expiresIn: (json['expiresIn'] as num?)?.toInt() ?? 86400,
+  );
 }

@@ -1,6 +1,3 @@
-// lib/screens/client/history_screen.dart
-// ✅ Utilise GET /api/transactions/me au lieu de Firestore
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../langue/app_localizations.dart';
