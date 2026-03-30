@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen>
   late TabController _tabController;
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _loginController = TextEditingController();   // login corporate
+  final _loginController = TextEditingController();  
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -349,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen>
   void _showCountryPicker() async {
     final t = AppLocalizations.of(context);
 
-    // On récupère la liste des pays depuis l'API
+   
     List<CountryModel> countries = [];
     try {
       final res = await http.get(Uri.parse("https://ton-api.com/api/pays"));
@@ -365,7 +365,7 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    // Affichage du modal
+    
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
