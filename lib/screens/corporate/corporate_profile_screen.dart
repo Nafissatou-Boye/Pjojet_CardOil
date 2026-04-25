@@ -1,6 +1,12 @@
+// lib/screens/corporate/corporate_profile_screen.dart
+// ✅ MIGRATION Firestore → API REST
+//   - CorporateEmployeeModel.fromFirestore → CorporateAccountModel via CorporateService
+//   - Plus de dépendance cloud_firestore
+
 import 'package:flutter/material.dart';
 import '../../services/corporate_service.dart';
 import '../../services/auth_service.dart';
+import '../../models/corporate_employee_model.dart';
 
 class CorporateProfileScreen extends StatefulWidget {
   final String userId;
@@ -123,7 +129,7 @@ class _CorporateProfileScreenState extends State<CorporateProfileScreen> {
     return _card('Informations personnelles', Icons.person_outline, [
       _field('Nom complet', account.fullName, Icons.badge_outlined),
       _field('Email', account.email, Icons.email_outlined),
-      _field('Matricule', account.employeeNumber, Icons.tag),
+      _field('Immatriculation', account.matriculePlaque, Icons.tag),
     ]);
   }
 

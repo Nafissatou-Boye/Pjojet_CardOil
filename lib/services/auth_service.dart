@@ -1,13 +1,6 @@
 // lib/services/auth_service.dart
-//
-// FIXES :
-//  1. validatePhone → 404 : tente /validate-phone puis /registerValidateur
-//     Si les deux sont 404, on skip le SMS et on va direct au signup
-//  2. signInWithLogin → 500 de /compte-entreprise :
-//     Le 500 est un bug BACKEND (doublon en base). On l'intercepte pour
-//     ne pas bloquer l'utilisateur et on affiche un message clair.
-//  3. loadUserProfile → gère 500 avec fallback cache
-//  4. Réponse API flexible (user dans root ou dans 'user')
+// ✅ Sans cache utilisateur — toujours depuis /api/users/me
+//    Le cache causait des données périmées quand le backend corrige ses doublons
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -48,7 +41,7 @@ class AuthService {
     required String password,
   }) async {
     print('🔐 signInWithLogin: $login');
-    return _doLogin({'username': login, 'loginIdentifier': login, 'password': password});
+    return _doLogin({'username': login, 'password': password, 'loginIdentifier': login});
   }
 
   Future<Map<String, dynamic>> signInWithPhone({
@@ -60,13 +53,11 @@ class AuthService {
   // ── LOGIN INTERNE ─────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> _doLogin(Map<String, dynamic> body) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl$loginEndpoint'),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await http.post(
+        Uri.parse('$baseUrl$loginEndpoint'),
+        headers: await _getHeaders(),
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 15));
 
       print('📥 Login Status: ${response.statusCode}');
 
@@ -80,8 +71,7 @@ class AuthService {
         final user = _extractUser(data);
 
         await _saveAuthData(AuthResponse(
-          user: user,
-          token: token,
+          user: user, token: token,
           expiresIn: (data['expiresIn'] as num?)?.toInt() ?? 86400,
         ));
         print('✅ Auth data saved');
@@ -90,14 +80,6 @@ class AuthService {
 
       if (response.statusCode == 401) {
         return {'success': false, 'error': 'Identifiant ou mot de passe incorrect'};
-      }
-
-      // FIX : 500 de /compte-entreprise remonte parfois ici
-      if (response.statusCode == 500) {
-        return {
-          'success': false,
-          'error': 'Erreur serveur temporaire. Contactez l\'administrateur.',
-        };
       }
 
       final data = _decode(response.body);
@@ -110,32 +92,24 @@ class AuthService {
     }
   }
 
- 
+  // ── CHARGEMENT PROFIL — toujours depuis l'API ─────────────────────────────
+  // ✅ Plus de cache utilisateur — données toujours fraîches depuis /api/users/me
   Future<Map<String, dynamic>> loadUserProfile() async {
     try {
-      final cached = await getCurrentUser();
-
-      // Toujours retourner le cache immédiatement, rafraîchir en arrière-plan
-      if (cached != null) {
-        _refreshProfileSilently();
-        return {'success': true, 'user': cached};
-      }
-
       final token = await getToken();
       if (token == null) return {'success': false, 'error': 'Non connecté'};
 
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl$profileEndpoint'),
-            headers: await _getHeaders(needsAuth: true),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        Uri.parse('$baseUrl$profileEndpoint'),
+        headers: await _getHeaders(needsAuth: true),
+      ).timeout(const Duration(seconds: 15));
 
       print('📥 Profile Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = _decode(response.body);
         final user = _extractUser(data);
+        // Mettre à jour le cache token avec le user frais
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(userKey, user.toJsonString());
         return {'success': true, 'user': user};
@@ -146,86 +120,51 @@ class AuthService {
         return {'success': false, 'error': 'Session expirée'};
       }
 
-    
-      if (response.statusCode == 500) {
-        print('⚠️ Profile 500 — fallback cache');
-        if (cached != null) return {'success': true, 'user': cached};
-        return {
-          'success': false,
-          'error': 'Erreur serveur. Réessayez dans quelques instants.',
-        };
-      }
+      // Fallback cache si erreur serveur
+      final cached = await getCurrentUser();
+      if (cached != null) return {'success': true, 'user': cached};
 
       return {'success': false, 'error': 'Erreur (${response.statusCode})'};
     } catch (e) {
+      // En cas d'erreur réseau, utiliser le cache
       final cached = await getCurrentUser();
       if (cached != null) return {'success': true, 'user': cached};
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-  Future<void> _refreshProfileSilently() async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl$profileEndpoint'),
-            headers: await _getHeaders(needsAuth: true),
-          )
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        final user = _extractUser(_decode(response.body));
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(userKey, user.toJsonString());
-      }
-    } catch (_) {}
-  }
-
-
+  // ── VALIDATION TÉLÉPHONE ──────────────────────────────────────────────────
   Future<Map<String, dynamic>> validatePhone({required String phone}) async {
     print('📱 validatePhone: $phone');
 
-    for (final endpoint in [
-      '/api/auth/validate-phone',
-      '/api/auth/registerValidateur',
-    ]) {
+    for (final endpoint in ['/api/auth/validate-phone', '/api/auth/registerValidateur']) {
       try {
-        final response = await http
-            .post(
-              Uri.parse('$baseUrl$endpoint'),
-              headers: await _getHeaders(),
-              body: jsonEncode({'phoneNumber': phone}),
-            )
-            .timeout(const Duration(seconds: 15));
+        final response = await http.post(
+          Uri.parse('$baseUrl$endpoint'),
+          headers: await _getHeaders(),
+          body: jsonEncode({'phoneNumber': phone}),
+        ).timeout(const Duration(seconds: 15));
 
         print('📥 $endpoint → ${response.statusCode}');
 
-        if (response.statusCode == 404) continue; 
+        if (response.statusCode == 404) continue;
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           return {'success': true, 'message': 'Code SMS envoyé'};
         }
 
         final data = _decode(response.body);
-        return {
-          'success': false,
-          'error': data['message']?.toString() ??
-              'Erreur ${response.statusCode}',
-        };
+        return {'success': false, 'error': data['message']?.toString() ?? 'Erreur ${response.statusCode}'};
       } catch (e) {
         return {'success': false, 'error': 'Erreur réseau: $e'};
       }
     }
 
-   
     print('⚠️ Aucun endpoint OTP actif — skip validation SMS');
-    return {
-      'success': true,
-      'skipOtp': true,
-      'message': 'Validation SMS non disponible — inscription directe',
-    };
+    return {'success': true, 'skipOtp': true, 'message': 'Validation SMS non disponible'};
   }
 
- 
+  // ── INSCRIPTION AVEC OTP ───────────────────────────────────────────────────
   Future<Map<String, dynamic>> signupWithOtp({
     required String phone,
     required String fullName,
@@ -235,7 +174,7 @@ class AuthService {
     required String companyId,
   }) async {
     try {
-      print('📝 signupWithOtp: $phone (otpCode: $otpCode)');
+      print('📝 signupWithOtp: $phone');
 
       final body = {
         'phoneNumber': phone,
@@ -251,18 +190,13 @@ class AuthService {
         'phoneVerified': otpCode.isNotEmpty,
       };
 
-      print('📤 Body: ${jsonEncode(body)}');
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl$registerEndpoint'),
-            headers: await _getHeaders(),
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 20));
+      final response = await http.post(
+        Uri.parse('$baseUrl$registerEndpoint'),
+        headers: await _getHeaders(),
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
 
       print('📥 Signup Status: ${response.statusCode}');
-      print('📥 Signup Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = _decode(response.body);
@@ -270,76 +204,40 @@ class AuthService {
 
         if (token.isNotEmpty) {
           final user = _extractUser(data);
-          await _saveAuthData(
-              AuthResponse(user: user, token: token, expiresIn: 86400));
+          await _saveAuthData(AuthResponse(user: user, token: token, expiresIn: 86400));
           return {'success': true, 'user': user, 'token': token};
         }
 
-        return {
-          'success': true,
-          'requiresLogin': true,
-          'message': 'Compte créé ! Connectez-vous avec vos identifiants.',
-        };
+        return {'success': true, 'requiresLogin': true, 'message': 'Compte créé ! Connectez-vous.'};
       }
 
       final data = _decode(response.body);
-      return {
-        'success': false,
-        'error': data['message']?.toString() ?? 'Erreur d\'inscription',
-      };
+      return {'success': false, 'error': data['message']?.toString() ?? 'Erreur d\'inscription'};
     } catch (e) {
-      print('❌ signupWithOtp error: $e');
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
-
+  // ── RENVOI OTP ────────────────────────────────────────────────────────────
   Future<Map<String, dynamic>> resendOtp({required String phone}) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/api/auth/resend-code'),
-            headers: await _getHeaders(),
-            body: jsonEncode({'phoneNumber': phone}),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      print('📥 resendOtp: ${response.statusCode}');
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/auth/resend-code'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'phoneNumber': phone}),
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return {'success': true, 'message': 'Code renvoyé'};
       }
       final data = _decode(response.body);
-      return {
-        'success': false,
-        'error': data['message']?.toString() ?? 'Erreur renvoi code',
-      };
+      return {'success': false, 'error': data['message']?.toString() ?? 'Erreur renvoi code'};
     } catch (e) {
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
 
- 
-  Future<Map<String, dynamic>> registerWithPhone({
-    required String phone,
-    required String fullName,
-    required String password,
-    required String country,
-    required String selectedCompagnie,
-    required String login,
-    String userType = 'individual',
-  }) async {
-    return signupWithOtp(
-      phone: phone,
-      fullName: fullName,
-      password: password,
-      countryCode: country,
-      otpCode: '',
-      companyId: selectedCompagnie,
-    );
-  }
-
- 
+  // ── SAUVEGARDE ─────────────────────────────────────────────────────────────
   Future<void> _saveAuthData(AuthResponse r) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(tokenKey, r.token);
@@ -348,7 +246,7 @@ class AuthService {
     await prefs.setString(expiresKey, exp.toIso8601String());
   }
 
- 
+  // ── TOKEN ──────────────────────────────────────────────────────────────────
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(tokenKey);
@@ -362,7 +260,7 @@ class AuthService {
     return token;
   }
 
- 
+  // ── UTILISATEUR DEPUIS CACHE ──────────────────────────────────────────────
   Future<UserModel?> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final json = prefs.getString(userKey);
@@ -381,16 +279,20 @@ class AuthService {
     return t != null && t.isNotEmpty;
   }
 
- 
+  // ── DÉCONNEXION + CLEAR ALL CACHE ─────────────────────────────────────────
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
+    // ✅ Vider TOUT le cache au logout
     await prefs.remove(tokenKey);
     await prefs.remove(userKey);
     await prefs.remove(expiresKey);
-    print('✅ User signed out');
+    await prefs.remove('cached_transactions');
+    await prefs.remove('cached_corporate_account');
+    await prefs.remove('cached_card');
+    print('✅ User signed out + cache vidé');
   }
 
-  
+  // ── HELPERS ────────────────────────────────────────────────────────────────
   Map<String, dynamic> _decode(String raw) {
     try {
       final d = jsonDecode(raw);
@@ -402,8 +304,7 @@ class AuthService {
   String _extractToken(Map<String, dynamic> data) =>
       data['token']?.toString() ??
       data['accessToken']?.toString() ??
-      data['jwt']?.toString() ??
-      '';
+      data['jwt']?.toString() ?? '';
 
   UserModel _extractUser(Map<String, dynamic> data) {
     if (data.containsKey('user') && data['user'] is Map) {
@@ -412,7 +313,7 @@ class AuthService {
     return UserModel.fromApiJson(data);
   }
 
- 
+  // ── Compatibilité ──────────────────────────────────────────────────────────
   Future<void> updateUserFullName(String fullName) async {
     final user = await getCurrentUser();
     if (user == null) return;
@@ -431,6 +332,14 @@ class AuthService {
   Future<bool> phoneExists(String phone) async => false;
   Future<void> addLoyaltyPoints(String c, int p) async {}
 
+  Future<Map<String, dynamic>> registerWithPhone({
+    required String phone, required String fullName, required String password,
+    required String country, required String selectedCompagnie,
+    required String login, String userType = 'individual',
+  }) async => signupWithOtp(
+    phone: phone, fullName: fullName, password: password,
+    countryCode: country, otpCode: '', companyId: selectedCompagnie);
+
   Future<Map<String, dynamic>> createUserProfile({
     required String uid, required String phone, required String fullName,
     required String password, required String country,
@@ -439,12 +348,10 @@ class AuthService {
   }) async => registerWithPhone(
     phone: phone, fullName: fullName, password: password,
     country: country, selectedCompagnie: selectedCompagnie,
-    login: login, userType: userType,
-  );
+    login: login, userType: userType);
 }
 
-
-
+// ── AuthResponse ──────────────────────────────────────────────────────────────
 class AuthResponse {
   final UserModel user;
   final String token;

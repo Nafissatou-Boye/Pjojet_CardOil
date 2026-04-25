@@ -1,3 +1,5 @@
+// lib/screens/notifications/notifications_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
@@ -5,12 +7,13 @@ import '../../models/notification_model.dart';
 import '../../langue/app_localizations.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  final String? token;
+  const NotificationsScreen({super.key, this.token});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final notificationService = NotificationService();
+    final service = NotificationService();
 
     return Directionality(
       textDirection: t.textDirection,
@@ -23,7 +26,7 @@ class NotificationsScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () async {
-                await notificationService.markAllAsRead();
+                await service.markAllAsRead(token: token);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(t.allMarkedRead),
@@ -31,28 +34,54 @@ class NotificationsScreen extends StatelessWidget {
                   ));
                 }
               },
-              child: Text(t.markAllRead,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600)),
+              child: Text(
+                t.markAllRead,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
         body: StreamBuilder<List<NotificationModel>>(
-          stream: notificationService.getAllNotificationsStream(),
+          stream: service.notificationsStream(token: token),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                !snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
+            if (snapshot.hasError) return _buildError();
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildEmptyState(t);
+              return _buildEmpty(t);
             }
-            final notifications = snapshot.data!;
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: notifications.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) => _buildNotificationCard(
-                  context, notifications[index], notificationService, t),
+            return RefreshIndicator(
+              color: const Color(0xFF2563EB),
+              onRefresh: () async =>
+                  await Future.delayed(const Duration(milliseconds: 600)),
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: snapshot.data!.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) {
+                  final notif = snapshot.data![i];
+                  return _NotificationCard(
+                    notification: notif,
+                    onTap: () async {
+                      if (!notif.isRead) {
+                        await service.markAsRead(notif.id, token: token);
+                      }
+                    },
+                    onDelete: () async {
+                      await service.deleteNotification(notif.id, token: token);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(t.notificationDeleted),
+                          backgroundColor: Colors.red,
+                        ));
+                      }
+                    },
+                  );
+                },
+              ),
             );
           },
         ),
@@ -60,127 +89,229 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState(AppLocalizations t) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(t.noNotification,
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600)),
-          const SizedBox(height: 8),
-          Text(t.noNotificationSub,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmpty(AppLocalizations t) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.notifications_none_rounded,
+                size: 80, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(t.noNotification,
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            Text(t.noNotificationSub,
+                style:
+                    TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+          ],
+        ),
+      );
 
-  Widget _buildNotificationCard(
-    BuildContext context,
-    NotificationModel notif,
-    NotificationService service,
-    AppLocalizations t,
-  ) {
+  Widget _buildError() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off_rounded,
+                  size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                'Impossible de charger les notifications.\nVérifiez votre connexion.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+// ─── Carte ────────────────────────────────────────────────────────────────────
+
+class _NotificationCard extends StatelessWidget {
+  final NotificationModel notification;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _NotificationCard({
+    required this.notification,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = notification.parsedMetadata;
+    final isRead = notification.isRead;
+
+    // ── Couleur et icône selon paiement ou recharge ──────────────────────
+    final isRecharge = meta?.isRecharge ?? false;
+    final color = isRecharge
+        ? const Color(0xFF059669) // vert  → recharge
+        : const Color(0xFFDC2626); // rouge → paiement
+    final iconData = isRecharge
+        ? Icons.account_balance_wallet_rounded // portefeuille → recharge
+        : Icons.local_gas_station_rounded;     // pompe → paiement carburant
+
     return Dismissible(
-      key: Key(notif.id),
+      key: Key(notification.id),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: Colors.red,
+          color: Colors.red.shade400,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+        child: const Icon(Icons.delete_rounded, color: Colors.white, size: 26),
       ),
-      onDismissed: (direction) async {
-        await service.deleteNotification(notif.id);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(t.notificationDeleted),
-            backgroundColor: Colors.red,
-          ));
-        }
-      },
-      child: InkWell(
-        onTap: () async {
-          if (!notif.isRead) await service.markAsRead(notif.id);
-        },
+      onDismissed: (_) => onDelete(),
+      child: GestureDetector(
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: notif.isRead ? Colors.white : const Color(0xFFF3F4F6),
+            color: isRead ? Colors.white : const Color(0xFFF0F9FF),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: notif.isRead
+              color: isRead
                   ? Colors.grey.shade200
-                  : const Color(0xFF2563EB).withOpacity(0.2),
+                  : color.withAlpha(51),
+              width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2))
+                color: Colors.black.withAlpha(10),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Icône colorée selon le type
               Container(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                    color: Color(0xFF2563EB), shape: BoxShape.circle),
-                child: Center(child: _getNotificationIcon(notif.type)),
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(26),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(iconData, color: color, size: 26),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(notif.title,
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: notif.isRead
-                                ? FontWeight.w600
-                                : FontWeight.bold,
-                            color: const Color(0xFF1F2937))),
+                    // Titre + type
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: isRead
+                                  ? FontWeight.w600
+                                  : FontWeight.w800,
+                              color: const Color(0xFF1F2937),
+                            ),
+                          ),
+                        ),
+                        // Badge paiement / recharge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withAlpha(20),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            meta?.typeLabel ?? 'Transaction',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: color,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notification.message,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                          height: 1.4),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // Chips metadata
+                    if (meta != null) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (meta.amount != null)
+                            _Chip(
+                              icon: Icons.payments_rounded,
+                              label:
+                                  '${meta.sign}${NumberFormat('#,##0.00', 'fr_FR').format(meta.amount)} FCFA',
+                              color: color,
+                            ),
+                        if (!isRecharge && meta.productName != null)
+  _Chip(
+    icon: Icons.local_gas_station_rounded,
+    label: meta.productName!,
+    color: color,
+  ),
+                          if (meta.productName != null)
+                            _Chip(
+                              icon: isRecharge
+                                  ? Icons.battery_charging_full_rounded
+                                  : Icons.local_gas_station_rounded,
+                              label: meta.productName!,
+                              color: color,
+                            ),
+                          if (meta.pointsEarned != null &&
+                              meta.pointsEarned! > 0)
+                            _Chip(
+                              icon: Icons.stars_rounded,
+                              label: '+${meta.pointsEarned} pts',
+                              color: const Color(0xFFD97706),
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 6),
-                    Text(notif.message,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
-                            color: Colors.grey.shade700)),
+                    Text(
+                      _formatDate(notification.createdAt),
+                      style: TextStyle(
+                          fontSize: 11, color: Colors.grey.shade400),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(_formatDate(notif.createdAt, t),
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w500)),
-                  if (!notif.isRead) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF2563EB), shape: BoxShape.circle),
-                    ),
-                  ],
-                ],
-              ),
+              // Point non-lu
+              if (!isRead)
+                Container(
+                  width: 9,
+                  height: 9,
+                  margin: const EdgeInsets.only(left: 8, top: 4),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
             ],
           ),
         ),
@@ -188,30 +319,52 @@ class NotificationsScreen extends StatelessWidget {
     );
   }
 
-  Widget _getNotificationIcon(NotificationType type) {
-    IconData icon;
-    switch (type) {
-      case NotificationType.transaction:
-        icon = Icons.receipt_long;
-        break;
-      case NotificationType.promotion:
-        icon = Icons.card_giftcard;
-        break;
-      case NotificationType.reminder:
-        icon = Icons.notifications_active;
-        break;
-      default:
-        icon = Icons.info_outline;
-    }
-    return Icon(icon, color: Colors.white, size: 28);
-  }
-
-  String _formatDate(DateTime date, AppLocalizations t) {
+  String _formatDate(DateTime dt) {
     final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inDays == 0) return DateFormat('HH:mm').format(date);
-    if (diff.inDays == 1) return t.yesterday;
-    if (diff.inDays < 7) return '${diff.inDays}j';
-    return DateFormat('dd/MM/yy').format(date);
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return "À l'instant";
+    if (diff.inHours < 1) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inDays < 1) return DateFormat('HH:mm').format(dt);
+    if (diff.inDays < 7) return DateFormat('EEE HH:mm', 'fr_FR').format(dt);
+    return DateFormat('dd/MM/yyyy', 'fr_FR').format(dt);
+  }
+}
+
+// ─── Chip ─────────────────────────────────────────────────────────────────────
+
+class _Chip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _Chip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,9 +1,10 @@
-import 'dart:convert';
+// lib/screens/auth/login_screen.dart
+// ✅ Adapté à tous les écrans — plus de SizedBox(height fixe)
+//    TabBarView dans un Expanded avec LayoutBuilder
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-
 import '../../services/auth_service.dart';
 import '../../langue/app_localizations.dart';
 import '../../models/country_model.dart';
@@ -23,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen>
   late TabController _tabController;
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _loginController = TextEditingController();  
+  final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -53,23 +54,29 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // ── Redirection par rôle ────────────────────────────────────────────────
   void _redirectByRole(UserModel user) {
     final role = (user.role ?? '').toUpperCase().trim();
-    Widget destination;
-    switch (role) {
-      case 'EMPLOYE':
-        destination = CorporateDashboardScreen(userId: user.uid);
-        break;
-      case 'CLIENT':
-      default:
-        destination = const ClientDashboard();
-    }
+    print('🔀 Redirection pour role: $role');
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => destination),
-      (route) => false,
-    );
+Widget destination;
+switch (role) {
+  case 'EMPLOYE':
+  case 'CLIENT_ENTREPRISE':
+    destination = CorporateDashboardScreen(userId: user.stringId);
+    print('→ Corporate Dashboard');
+    break;
+  case 'CLIENT':
+  default:
+    destination = const ClientDashboard();
+    print('→ Client Dashboard');
+}
+
+Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(builder: (_) => destination),
+  (route) => false,
+);
   }
 
   Future<void> _loginIndividual() async {
@@ -80,15 +87,11 @@ class _LoginScreenState extends State<LoginScreen>
     final cleanPhone = fullPhone.replaceAll(RegExp(r'[^0-9+]'), '');
 
     final result = await authService.checkCredentials(
-      phone: cleanPhone,
-      password: _passwordController.text.trim(),
-    );
+        phone: cleanPhone, password: _passwordController.text.trim());
 
     if (!mounted) return;
-
     if (result['success'] == true) {
-      final user = result['user'] as UserModel;
-      _redirectByRole(user);
+      _redirectByRole(result['user'] as UserModel);
     } else {
       _showError(result['error'] ?? t.unknownError);
     }
@@ -99,15 +102,12 @@ class _LoginScreenState extends State<LoginScreen>
     final authService = Provider.of<AuthService>(context, listen: false);
 
     final result = await authService.signInWithLogin(
-      login: _loginController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
+        login: _loginController.text.trim(),
+        password: _passwordController.text.trim());
 
     if (!mounted) return;
-
-    if (result['success'] == true) {
-      final user = result['user'] as UserModel;
-      _redirectByRole(user);
+    if (result['success'] == true && result['user'] != null) {
+      _redirectByRole(result['user'] as UserModel);
     } else {
       _showError(result['error'] ?? t.unknownError);
     }
@@ -124,8 +124,7 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      final t = AppLocalizations.of(context);
-      _showError('${t.unexpectedError}: $e');
+      _showError('Erreur: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -141,6 +140,7 @@ class _LoginScreenState extends State<LoginScreen>
     ));
   }
 
+  // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -149,78 +149,146 @@ class _LoginScreenState extends State<LoginScreen>
       textDirection: t.textDirection,
       child: Scaffold(
         backgroundColor: const Color(0xFF2563EB),
+        // ✅ resizeToAvoidBottomInset gère le clavier
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           child: Column(children: [
+            // ── Header bleu ────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 8),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
               child: Column(children: [
                 Text(t.welcomeGreeting,
                     style: const TextStyle(
-                        fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 6),
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+                const SizedBox(height: 4),
                 Text(t.connectToAccount,
                     style: const TextStyle(fontSize: 14, color: Colors.white70)),
               ]),
             ),
+
+            // ── Corps blanc scrollable ─────────────────────────────────────
             Expanded(
               child: Container(
                 decoration: const BoxDecoration(
                   color: Color(0xFFF5F7FA),
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(32), topRight: Radius.circular(32))),
-                child: Column(children: [
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                          color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                      child: TabBar(
-                        controller: _tabController,
-                        indicator: BoxDecoration(
-                            color: const Color(0xFF2563EB),
-                            borderRadius: BorderRadius.circular(12)),
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.grey.shade600,
-                        tabs: [
-                          Tab(icon: const Icon(Icons.phone), text: t.phoneTab),
-                          Tab(icon: const Icon(Icons.person), text: t.identifierTab),
+                      topLeft: Radius.circular(28),
+                      topRight: Radius.circular(28))),
+                // ✅ SingleChildScrollView pour éviter l'overflow sur petits écrans
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── Tabs ─────────────────────────────────────────
+                          Container(
+                            height: 56,
+                            decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12)),
+                            child: TabBar(
+                              controller: _tabController,
+                              indicator: BoxDecoration(
+                                  color: const Color(0xFF2563EB),
+                                  borderRadius: BorderRadius.circular(12)),
+                              labelColor: Colors.white,
+                              unselectedLabelColor: Colors.grey.shade600,
+                              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              tabs: [
+                                Tab(icon: const Icon(Icons.phone, size: 18), text: t.phoneTab),
+                                Tab(icon: const Icon(Icons.badge_outlined, size: 18), text: t.identifierTab),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // ── Contenu des tabs ──────────────────────────────
+                          // ✅ SizedBox avec hauteur fixe REMPLACÉ par AnimatedBuilder
+                          _TabContent(
+                            tabController: _tabController,
+                            phoneTab: _buildPhoneTab(t),
+                            loginTab: _buildLoginTab(t),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // ── Bouton connexion ──────────────────────────────
+                          SizedBox(
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                disabledBackgroundColor:
+                                    const Color(0xFF2563EB).withOpacity(0.5),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                elevation: 0),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 22, height: 22,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2.5))
+                                  : Text(t.connect,
+                                      style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // ── Liens footer ──────────────────────────────────
+                          Center(
+                            child: TextButton(
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/reset-password'),
+                              child: Text(t.forgotPasswordQ,
+                                  style: TextStyle(color: Colors.grey.shade600)),
+                            ),
+                          ),
+                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Text(t.noAccountYet,
+                                style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                            TextButton(
+                              onPressed: () => Navigator.pushNamed(context, '/register'),
+                              child: Text(t.createAccount,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2563EB),
+                                      fontSize: 14)),
+                            ),
+                          ]),
+
+                          // ── Footer brand ──────────────────────────────────
+                          Center(
+                            child: RichText(
+                              text: const TextSpan(children: [
+                                TextSpan(
+                                    text: '@SenPay',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF2563EB))),
+                                TextSpan(
+                                    text: ' ©',
+                                    style: TextStyle(
+                                        fontSize: 10, color: Color(0xFF9CA3AF))),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                         ],
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Form(
-                        key: _formKey,
-                        child: SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _buildPhoneTab(t),
-                              _buildLoginTab(t),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: RichText(
-                      text: const TextSpan(children: [
-                        TextSpan(text: '@SenPay',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF2563EB))),
-                        TextSpan(text: ' © ',
-                            style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
-                      ]),
-                    ),
-                  ),
-                ]),
+                ),
               ),
             ),
           ]),
@@ -231,179 +299,132 @@ class _LoginScreenState extends State<LoginScreen>
 
   Widget _buildPhoneTab(AppLocalizations t) {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SizedBox(height: 16),
+      // Champ téléphone
       Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
         child: Row(children: [
           InkWell(
-            onTap: _showCountryPicker,
+            onTap: () {}, // Country picker
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-              child: Row(children: [
-                Text(_selectedCountry.drapeau, style: const TextStyle(fontSize: 24)),
-                const SizedBox(width: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(_selectedCountry.drapeau,
+                    style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 4),
                 Text(_selectedCountry.indicatif,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 20),
               ]),
             ),
           ),
-          Expanded(child: TextFormField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: InputDecoration(
-              hintText: t.enterPhone, border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 18)),
-            validator: (v) => v == null || v.isEmpty ? t.requiredField : null,
-          )),
+          Container(width: 1, height: 32, color: Colors.grey.shade200),
+          Expanded(
+            child: TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                  hintText: t.enterPhone,
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16)),
+              validator: (v) => v == null || v.isEmpty ? t.requiredField : null,
+            ),
+          ),
         ]),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       _buildPasswordField(t),
-      const SizedBox(height: 32),
-      _buildSignInButton(t),
-      const SizedBox(height: 16),
-      _buildFooterLinks(t),
     ]);
   }
 
   Widget _buildLoginTab(AppLocalizations t) {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SizedBox(height: 16),
       Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
         child: TextFormField(
           controller: _loginController,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF9CA3AF)),
-            hintText: t.yourIdentifier,
-            border: InputBorder.none, contentPadding: const EdgeInsets.all(18)),
+              prefixIcon:
+                  const Icon(Icons.badge_outlined, color: Color(0xFF9CA3AF)),
+              hintText: t.yourIdentifier,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(16)),
           validator: (v) => v == null || v.isEmpty ? t.requiredField : null,
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
       _buildPasswordField(t),
-      const SizedBox(height: 32),
-      _buildSignInButton(t),
-      const SizedBox(height: 16),
-      _buildFooterLinks(t),
     ]);
   }
 
   Widget _buildPasswordField(AppLocalizations t) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: TextFormField(
         controller: _passwordController,
         obscureText: _obscurePassword,
         decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF)),
-          hintText: t.password, border: InputBorder.none, contentPadding: const EdgeInsets.all(18),
+          prefixIcon:
+              const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF)),
+          hintText: t.password,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
           suffixIcon: IconButton(
-            icon: Icon(_obscurePassword
-                ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
                 color: const Color(0xFF9CA3AF)),
-            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
           ),
         ),
         validator: (v) => v == null || v.isEmpty ? t.requiredField : null,
       ),
     );
   }
+}
 
-  Widget _buildSignInButton(AppLocalizations t) {
-    return SizedBox(
-      height: 56,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _login,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF2563EB),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : Text(t.connect,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
-      ),
-    );
+// ── Widget qui switche entre les 2 tabs sans SizedBox fixe ────────────────────
+class _TabContent extends StatefulWidget {
+  final TabController tabController;
+  final Widget phoneTab;
+  final Widget loginTab;
+  const _TabContent({
+    required this.tabController,
+    required this.phoneTab,
+    required this.loginTab,
+  });
+
+  @override
+  State<_TabContent> createState() => _TabContentState();
+}
+
+class _TabContentState extends State<_TabContent> {
+  @override
+  void initState() {
+    super.initState();
+    widget.tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
-  Widget _buildFooterLinks(AppLocalizations t) {
-    return Column(children: [
-      TextButton(
-        onPressed: () => Navigator.pushNamed(context, '/reset-password'),
-        child: Text(t.forgotPasswordQ,
-            style: TextStyle(color: Colors.grey.shade600))),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(t.noAccountYet, style: TextStyle(color: Colors.grey.shade600)),
-        TextButton(
-          onPressed: () => Navigator.pushNamed(context, '/register'),
-          child: Text(t.createAccount,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2563EB)))),
-      ]),
-    ]);
-  }
-
-  void _showCountryPicker() async {
-    final t = AppLocalizations.of(context);
-
-   
-    List<CountryModel> countries = [];
-    try {
-      final res = await http.get(Uri.parse("https://ton-api.com/api/pays"));
-      if (res.statusCode == 200) {
-        final List data = jsonDecode(res.body);
-        countries = data.map((e) => CountryModel.fromJson(e)).toList();
-      } else {
-        _showError("Impossible de charger les pays");
-        return;
-      }
-    } catch (e) {
-      _showError("Erreur réseau");
-      return;
-    }
-
-    
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(99))),
-          const SizedBox(height: 16),
-          Text(t.chooseCountry,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: countries.length,
-              itemBuilder: (context, index) {
-                final country = countries[index];
-                return ListTile(
-                  leading: Text(country.drapeau, style: const TextStyle(fontSize: 32)),
-                  title: Text(country.nomPays),
-                  trailing: Text(country.indicatif,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  onTap: () {
-                    setState(() => _selectedCountry = country);
-                    Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+  @override
+  Widget build(BuildContext context) {
+    // ✅ AnimatedSwitcher pour transition fluide sans height fixe
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: widget.tabController.index == 0
+          ? KeyedSubtree(key: const ValueKey('phone'), child: widget.phoneTab)
+          : KeyedSubtree(key: const ValueKey('login'), child: widget.loginTab),
     );
   }
 }

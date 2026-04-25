@@ -108,6 +108,9 @@ class _DashboardHomeState extends State<DashboardHome> {
     _loadData();
   }
 
+
+
+
   Future<void> _loadData() async {
     setState(() { _loading = true; _error = null; });
 
@@ -186,7 +189,8 @@ class _DashboardHomeState extends State<DashboardHome> {
 
 class _BlueHeader extends StatelessWidget {
   final UserModel user;
-  final CardModel? card;   // ✅ carte depuis API
+  final CardModel? card;  
+  
   final CompanyModel? company;
   const _BlueHeader({required this.user, required this.card, required this.company});
 
@@ -234,60 +238,103 @@ class _BlueHeader extends StatelessWidget {
 }
 
 
-class _TopRow extends StatelessWidget {
+class _TopRow extends StatefulWidget {
   final UserModel user;
   const _TopRow({required this.user});
-
+ 
+  @override
+  State<_TopRow> createState() => _TopRowState();
+}
+ 
+class _TopRowState extends State<_TopRow> {
+  final _authService = AuthService();
+  final _notifService = NotificationService();
+  String? _token;
+  int _unreadCount = 0;
+ 
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+ 
+  Future<void> _init() async {
+    // Récupère le token depuis SharedPreferences
+    final token = await _authService.getToken();
+    if (!mounted) return;
+    setState(() => _token = token);
+ 
+    // Charge le compteur avec le token
+    final count = await _notifService.getUnreadCount(token: token);
+    if (!mounted) return;
+    setState(() => _unreadCount = count);
+  }
+ 
+  Future<void> _refreshCount() async {
+    final count = await _notifService.getUnreadCount(token: _token);
+    if (!mounted) return;
+    setState(() => _unreadCount = count);
+  }
+ 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final notifService = NotificationService();
-
+ 
     return Row(children: [
       GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const QRCodeScreen())),
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const QRCodeScreen())),
         child: Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(12)),
           child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 24),
         ),
       ),
       const SizedBox(width: 12),
       Expanded(
         child: Text(
-          t.helloUser(user.fullName.split(' ').first),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          t.helloUser(widget.user.fullName.split(' ').first),
+          style: const TextStyle(
+              fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      FutureBuilder<int>(
-        future: notifService.getUnreadCount(),
-        builder: (context, snap) {
-          final count = snap.data ?? 0;
-          return GestureDetector(
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-            child: Stack(clipBehavior: Clip.none, children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
-              ),
-              if (count > 0)
-                Positioned(
-                  right: -2, top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                    child: Text(count > 9 ? '9+' : '$count',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-                  ),
+      // ✅ Cloche avec token
+      GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => NotificationsScreen(token: _token),
+          ),
+        ).then((_) => _refreshCount()), // Rafraîchit le badge au retour
+        child: Stack(clipBehavior: Clip.none, children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.notifications_outlined,
+                color: Colors.white, size: 24),
+          ),
+          if (_unreadCount > 0)
+            Positioned(
+              right: -2, top: -2,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                    color: Color(0xFFEF4444), shape: BoxShape.circle),
+                child: Text(
+                  _unreadCount > 9 ? '9+' : '$_unreadCount',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold),
                 ),
-            ]),
-          );
-        },
+              ),
+            ),
+        ]),
       ),
     ]);
   }
@@ -548,61 +595,95 @@ class _WhiteContent extends StatelessWidget {
   }
 
 
-  Widget _buildMonthlyExpenses(BuildContext context, AppLocalizations t) {
-    final txService = TransactionService();
+Widget _buildMonthlyExpenses(BuildContext context, AppLocalizations t) {
+  final txService = TransactionService();
 
-    return FutureBuilder<List<TransactionModel>>(
-      future: txService.getTransactions(),
-      builder: (context, snap) {
-        double total = 0;
-        int count = 0;
-        final now = DateTime.now();
-        final firstDay = DateTime(now.year, now.month, 1);
-        final daily = List.generate(31, (_) => 0.0);
+  return FutureBuilder<List<StationTransactionModel>>(
+    future: txService.getTransactions(),
+    builder: (context, snap) {
+      double total = 0;
+      int count = 0;
+      final now = DateTime.now();
+      final firstDay = DateTime(now.year, now.month, 1);
+      final daily = List.generate(31, (_) => 0.0);
 
-        if (snap.hasData) {
-          for (final tx in snap.data!) {
-            final isPayment = tx.type.toUpperCase() == 'PAYMENT' || tx.type.toUpperCase() == 'VENTE';
-            if (tx.createdAt.isAfter(firstDay) && isPayment) {
-              total += tx.amount;
-              count++;
-              final d = tx.createdAt.day - 1;
-              if (d >= 0 && d < 31) daily[d] += tx.amount;
-            }
+      if (snap.hasData) {
+        for (final tx in snap.data!) {
+          // Utilisation du getter isDebit pour savoir si c'est un paiement
+          if (tx.createdAt.isAfter(firstDay) && tx.isDebit) {
+            total += tx.amount;
+            count++;
+            final d = tx.createdAt.day - 1;
+            if (d >= 0 && d < 31) daily[d] += tx.amount;
           }
         }
+      }
 
-        final last6 = <double>[];
-        for (int i = daily.length - 1; i >= 0 && last6.length < 6; i--) {
-          if (daily[i] > 0 || last6.isNotEmpty) last6.insert(0, daily[i]);
-        }
-        while (last6.length < 6) last6.insert(0, 0.0);
+      // Derniers 6 jours avec activité
+      final last6 = <double>[];
+      for (int i = daily.length - 1; i >= 0 && last6.length < 6; i--) {
+        if (daily[i] > 0 || last6.isNotEmpty) last6.insert(0, daily[i]);
+      }
+      while (last6.length < 6) last6.insert(0, 0.0);
 
-        final mx = last6.reduce((a, b) => a > b ? a : b);
-        final normalized = mx > 0 ? last6.map((e) => e / mx).toList() : [0.3, 0.4, 0.55, 0.7, 0.85, 1.0];
+      // Normalisation pour le graphique
+      final mx = last6.reduce((a, b) => a > b ? a : b);
+      final normalized = mx > 0 ? last6.map((e) => e / mx).toList() : [0.3, 0.4, 0.55, 0.7, 0.85, 1.0];
 
-        final totalStr = total.toStringAsFixed(0)
-            .replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]} ');
+      // Formatage du total avec espace pour milliers
+      final totalStr = total.toStringAsFixed(0).replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]} ',
+      );
 
-        return Container(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(t.monthlyExpenses, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              t.monthlyExpenses,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF6B7280)),
+            ),
             const SizedBox(height: 6),
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(totalStr, style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w900, color: Color(0xFF2563EB), letterSpacing: -0.5)),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 2, left: 4),
-                child: Text(' FCFA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
-              ),
-            ]),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  totalStr,
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF2563EB),
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 2, left: 4),
+                  child: Text(
+                    ' FCFA',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF6B7280)),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 2),
-            Text(t.transactionCount(count), style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+            Text(
+              t.transactionCount(count),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+            ),
             const SizedBox(height: 12),
             SizedBox(
               height: 44,
@@ -611,17 +692,28 @@ class _WhiteContent extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: normalized.map((v) {
                   final h = (v * 44).clamp(4.0, 44.0);
-                  final color = v > 0.8 ? const Color(0xFF2563EB) : v > 0.5 ? const Color(0xFF93C5FD) : const Color(0xFFE5E7EB);
-                  return Container(width: 28, height: h,
-                      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(5)));
+                  final color = v > 0.8
+                      ? const Color(0xFF2563EB)
+                      : v > 0.5
+                          ? const Color(0xFF93C5FD)
+                          : const Color(0xFFE5E7EB);
+                  return Container(
+                    width: 28,
+                    height: h,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  );
                 }).toList(),
               ),
             ),
-          ]),
-        );
-      },
-    );
-  }
+          ],
+        ),
+      );
+    },
+  );
+}
 }
 
 

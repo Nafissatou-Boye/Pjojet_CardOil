@@ -39,12 +39,7 @@ dependencies:
 
   
 
-  # Firebase (compatible Flutter 3.10+)
-  firebase_core: ^4.4.0
-  firebase_auth: ^6.1.4
-  cloud_firestore: ^6.1.2
-  firebase_analytics: ^12.1.2
-  cloud_functions: ^6.0.6
+
   qr_flutter: ^4.0.0
 
   # Scanner QR (version compatible disponible)

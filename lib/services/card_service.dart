@@ -5,9 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class CardModel {
   final String id;
   final String reference;
-  final double balance;     
-  final int loyaltyPoints;    
-  final String status;        
+  final double balance;      // ← soldeReel (montant réellement dépensable)
+  final double soldeTotal;   // ← solde brut (pour info)
+  final int loyaltyPoints;
+  final String status;
   final String compagnie;
   final String? clientName;
   final DateTime? expiryDate;
@@ -16,6 +17,7 @@ class CardModel {
     required this.id,
     required this.reference,
     required this.balance,
+    required this.soldeTotal,
     required this.loyaltyPoints,
     required this.status,
     required this.compagnie,
@@ -26,19 +28,22 @@ class CardModel {
   bool get isActive => status.toUpperCase() == 'ACTIVE';
 
   factory CardModel.fromJson(Map<String, dynamic> json) {
+
+    final soldeReel = (json['soldeReel'] ?? json['solde_reel'] ?? 0).toDouble();
+final solde     = (json['solde'] ?? 0).toDouble();
+    // ✅ balance = soldeReel — c'est ce que le backend décrédite lors d'un paiement
+
     return CardModel(
       id: json['id']?.toString() ?? '',
       reference: json['reference']?.toString() ??
           json['ref']?.toString() ??
           json['numero']?.toString() ?? '',
-      balance: (json['solde'] ?? json['balance'] ?? json['montant'] ?? 0).toDouble(),
+      balance: soldeReel,     // ✅ CORRIGÉ : était json['solde'], maintenant soldeReel
+      soldeTotal: solde,      // ✅ conservé pour référence si besoin
       loyaltyPoints: (json['pointsFidelite'] ?? json['loyaltyPoints'] ?? json['points'] ?? 0) as int,
-      status: json['statut']?.toString() ??
-          json['status']?.toString() ?? 'ACTIVE',
-      compagnie: json['compagnie']?.toString() ??
-          json['companyName']?.toString() ?? '',
-      clientName: json['clientName']?.toString() ??
-          json['porteurName']?.toString(),
+      status: json['statut']?.toString() ?? json['status']?.toString() ?? 'ACTIVE',
+      compagnie: json['compagnie']?.toString() ?? json['companyName']?.toString() ?? '',
+      clientName: json['clientName']?.toString() ?? json['porteurName']?.toString(),
       expiryDate: json['dateExpiration'] != null
           ? DateTime.tryParse(json['dateExpiration'].toString())
           : json['expiryDate'] != null
@@ -50,7 +55,8 @@ class CardModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'reference': reference,
-    'balance': balance,
+    'soldeReel': balance,     // ✅ cohérent avec le nom backend
+    'solde': soldeTotal,
     'loyaltyPoints': loyaltyPoints,
     'status': status,
     'compagnie': compagnie,
@@ -58,7 +64,6 @@ class CardModel {
     if (expiryDate != null) 'expiryDate': expiryDate!.toIso8601String(),
   };
 }
-
 class CardService {
   static const String _baseUrl = 'https://api.cardoil.io';
   static const String _tokenKey = 'auth_token';

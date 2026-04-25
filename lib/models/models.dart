@@ -1,19 +1,16 @@
 // lib/models/user_model_hybrid.dart
+// ✅ Nettoyé : plus aucune trace Firebase (uid remplacé par stringId)
 
 import 'dart:convert';
-
-/// ═══════════════════════════════════════════════════════════════════════════
-/// USER MODEL HYBRIDE - Compatible API REST + Firebase
-/// ═══════════════════════════════════════════════════════════════════════════
 
 enum UserType { individual, corporate }
 
 class UserModel {
-  // ───── Identifiants (API + Firebase) ─────
-  final String uid;           // Pour Firebase
-  final int? id;           // Pour API (id numérique)
-  
-  // ───── Champs communs ─────
+  // ── Identifiants DB uniquement ───────────────────────────────────────────
+  final int? id;            // ID numérique DB (ex: 42)  ← CLEF PRINCIPALE
+  final String stringId;    // id.toString() pour compatibilité (remplace uid)
+
+  // ── Champs communs ───────────────────────────────────────────────────────
   final String phone;
   final String fullName;
   final String email;
@@ -25,17 +22,15 @@ class UserModel {
   final bool phoneVerified;
   final DateTime createdAt;
   final DateTime? lastLogin;
-
-  // ───── Type utilisateur ─────
   final UserType userType;
 
-  // ───── Champs API ─────
-  final String? username;     // API username
-  final String? role;         // API role (client, corporate, gerant, pompiste, admin)
-  final int? compagnie;       // API compagnie (int)
-  final String? countryCode;  // API country code
+  // ── Champs API ───────────────────────────────────────────────────────────
+  final String? username;
+  final String? role;
+  final int? compagnie;
+  final String? countryCode;
 
-  // ───── Champs corporate ─────
+  // ── Champs corporate ────────────────────────────────────────────────────
   final String? enterpriseId;
   final String? enterpriseName;
   final String? employeeNumber;
@@ -46,15 +41,12 @@ class UserModel {
   final String? department;
   final String? position;
 
-  // ───── Fidélité ─────
+  // ── Fidélité ─────────────────────────────────────────────────────────────
   final Map<String, int> loyaltyPoints;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // CONSTRUCTOR
-  // ═══════════════════════════════════════════════════════════════════════════
   UserModel({
-    required this.uid,
     this.id,
+    String? stringId,
     required this.phone,
     required this.fullName,
     required this.email,
@@ -67,14 +59,10 @@ class UserModel {
     DateTime? createdAt,
     this.lastLogin,
     this.userType = UserType.individual,
-    
-    // API fields
     this.username,
     this.role,
     this.compagnie,
     this.countryCode,
-    
-    // Corporate
     this.enterpriseId,
     this.enterpriseName,
     this.employeeNumber,
@@ -84,39 +72,40 @@ class UserModel {
     this.isCumulative,
     this.department,
     this.position,
-    
-    // Loyalty
     Map<String, int>? loyaltyPoints,
-  }) : loyaltyPoints = loyaltyPoints ?? {},
-       selectedCompagnie = selectedCompagnie.toUpperCase(),
-       createdAt = createdAt ?? DateTime.now();
+  })  : stringId = stringId ?? id?.toString() ?? '',
+        selectedCompagnie = selectedCompagnie.toUpperCase(),
+        createdAt = createdAt ?? DateTime.now(),
+        loyaltyPoints = loyaltyPoints ?? {};
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FROM API JSON (Swagger Response)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── FROM API ─────────────────────────────────────────────────────────────
   factory UserModel.fromApiJson(Map<String, dynamic> json) {
-    // Déterminer le type selon le role
-    UserType type = UserType.individual;
     final role = (json['role'] ?? '').toString().toLowerCase();
-    if (role == 'corporate' || role == 'employee') {
-      type = UserType.corporate;
-    }
+    final userType = (role == 'corporate' || role == 'employee')
+        ? UserType.corporate
+        : UserType.individual;
+
+    // ✅ id numérique DB — cherche dans plusieurs champs
+    final rawId = json['id'] ?? json['userId'] ?? json['dbId'];
+    final numericId = rawId is int
+        ? rawId
+        : int.tryParse(rawId?.toString() ?? '');
 
     return UserModel(
-      uid: json['id']?.toString() ?? '',       // Convertir int en String
-      id: json['id'],                       // Garder l'ID numérique
-      username: json['username'],
-      phone: json['phoneNumber'] ?? '',
-      fullName: json['firstname'] ?? json['username'] ?? '',
-      email: json['email'] ?? '',
-      role: json['role'],
-      compagnie: json['compagnie'],
+      id: numericId,
+      stringId: numericId?.toString() ?? '',
+      username: json['username']?.toString(),
+      phone: json['phoneNumber']?.toString() ?? '',
+      fullName: json['firstname']?.toString() ??
+          json['fullName']?.toString() ??
+          json['username']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      role: json['role']?.toString(),
+      compagnie: (json['compagnie'] as num?)?.toInt(),
       selectedCompagnie: json['compagnie']?.toString() ?? 'TOTAL',
-      countryCode: json['countryCode'],
-      phoneVerified: json['phoneVerified'] ?? false,
-      userType: type,
-      
-      // Balance pas dans l'API, on met 0 par défaut
+      countryCode: json['countryCode']?.toString(),
+      phoneVerified: json['phoneVerified'] as bool? ?? false,
+      userType: userType,
       balance: 0,
       qrCode: '',
       status: 'ACTIVE',
@@ -124,42 +113,32 @@ class UserModel {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // TO API JSON
-  // ═══════════════════════════════════════════════════════════════════════════
-  Map<String, dynamic> toApiJson() {
-    return {
-      'id': id,
-      'username': username,
-      'firstname': fullName,
-      'email': email,
-      'role': role,
-      'compagnie': compagnie,
-      'phoneNumber': phone,
-      'countryCode': countryCode,
-      'phoneVerified': phoneVerified,
-    };
-  }
+  // ── SÉRIALISATION ────────────────────────────────────────────────────────
+  Map<String, dynamic> toApiJson() => {
+        'id': id,
+        'username': username,
+        'firstname': fullName,
+        'email': email,
+        'role': role,
+        'compagnie': compagnie,
+        'phoneNumber': phone,
+        'countryCode': countryCode,
+        'phoneVerified': phoneVerified,
+      };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // TO/FROM STRING (SharedPreferences)
-  // ═══════════════════════════════════════════════════════════════════════════
   String toJsonString() => jsonEncode(toApiJson());
-  
-  factory UserModel.fromJsonString(String jsonString) {
-    return UserModel.fromApiJson(jsonDecode(jsonString));
-  }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // GETTERS
-  // ═══════════════════════════════════════════════════════════════════════════
-  
+  factory UserModel.fromJsonString(String jsonString) =>
+      UserModel.fromApiJson(jsonDecode(jsonString) as Map<String, dynamic>);
+
+  // ── GETTERS ──────────────────────────────────────────────────────────────
   bool get isIndividual => userType == UserType.individual;
   bool get isCorporate => userType == UserType.corporate;
-  
-  // Getters pour les rôles API
-  bool get isGerant => role?.toLowerCase() == 'gerant' || role?.toLowerCase() == 'manager';
-  bool get isPompiste => role?.toLowerCase() == 'pompiste' || role?.toLowerCase() == 'attendant';
+  bool get isGerant =>
+      role?.toLowerCase() == 'gerant' || role?.toLowerCase() == 'manager';
+  bool get isPompiste =>
+      role?.toLowerCase() == 'pompiste' ||
+      role?.toLowerCase() == 'attendant';
   bool get isAdmin => role?.toLowerCase() == 'admin';
 
   double get availableBalance {
@@ -176,40 +155,17 @@ class UserModel {
     return false;
   }
 
-  double get usagePercentage {
-    if (isCorporate && monthlyLimit != null && monthlyLimit! > 0 && currentMonthUsage != null) {
-      return (currentMonthUsage! / monthlyLimit! * 100).clamp(0, 100);
-    }
-    return 0;
-  }
-
-  int getLoyaltyPoints(String companyId) {
-    final key = companyId.toUpperCase().trim();
-    return loyaltyPoints[key] ?? 0;
-  }
+  int getLoyaltyPoints(String companyId) =>
+      loyaltyPoints[companyId.toUpperCase().trim()] ?? 0;
 
   int get currentCompanyPoints => getLoyaltyPoints(selectedCompagnie);
+  int get totalLoyaltyPoints =>
+      loyaltyPoints.values.fold(0, (s, p) => s + p);
 
-  List<Map<String, dynamic>> getAllLoyaltyPoints() {
-    return loyaltyPoints.entries
-        .map((e) => {'compagnie': e.key, 'points': e.value})
-        .toList()
-      ..sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
-  }
+  String get formattedPhone =>
+      (countryCode?.isNotEmpty ?? false) ? '+$countryCode$phone' : phone;
 
-  bool hasCompany(String compagnie) => 
-      loyaltyPoints.containsKey(compagnie.toUpperCase().trim());
-
-  int get totalLoyaltyPoints => 
-      loyaltyPoints.values.fold(0, (sum, p) => sum + p);
-
-  String get formattedPhone => countryCode != null && countryCode!.isNotEmpty
-      ? '+$countryCode$phone'
-      : phone;
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // COPY WITH
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ── COPY WITH ────────────────────────────────────────────────────────────
   UserModel copyWith({
     String? phone,
     String? fullName,
@@ -232,67 +188,36 @@ class UserModel {
     String? department,
     String? position,
     Map<String, int>? loyaltyPoints,
-  }) {
-    return UserModel(
-      uid: uid,
-      id: id,
-      username: username,
-      phone: phone ?? this.phone,
-      fullName: fullName ?? this.fullName,
-      email: email ?? this.email,
-      selectedCompagnie: (selectedCompagnie ?? this.selectedCompagnie).toUpperCase(),
-      qrCode: qrCode,
-      balance: balance ?? this.balance,
-      status: status ?? this.status,
-      isActive: isActive ?? this.isActive,
-      phoneVerified: phoneVerified ?? this.phoneVerified,
-      createdAt: createdAt,
-      lastLogin: lastLogin,
-      userType: userType ?? this.userType,
-      role: role ?? this.role,
-      compagnie: compagnie ?? this.compagnie,
-      countryCode: countryCode,
-      enterpriseId: enterpriseId ?? this.enterpriseId,
-      enterpriseName: enterpriseName ?? this.enterpriseName,
-      employeeNumber: employeeNumber ?? this.employeeNumber,
-      monthlyLimit: monthlyLimit ?? this.monthlyLimit,
-      currentMonthUsage: currentMonthUsage ?? this.currentMonthUsage,
-      profileLocked: profileLocked ?? this.profileLocked,
-      isCumulative: isCumulative ?? this.isCumulative,
-      department: department ?? this.department,
-      position: position ?? this.position,
-      loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
-    );
-  }
-}
-
-/// ═══════════════════════════════════════════════════════════════════════════
-/// AUTH RESPONSE MODEL (API)
-/// ═══════════════════════════════════════════════════════════════════════════
-class AuthResponse {
-  final UserModel user;
-  final String token;
-  final int expiresIn;
-
-  AuthResponse({
-    required this.user,
-    required this.token,
-    required this.expiresIn,
-  });
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      user: UserModel.fromApiJson(json['user']),
-      token: json['token'] ?? '',
-      expiresIn: json['expiresIn'] ?? 3600,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'user': user.toApiJson(),
-      'token': token,
-      'expiresIn': expiresIn,
-    };
-  }
+  }) =>
+      UserModel(
+        id: id,
+        stringId: stringId,
+        username: username,
+        phone: phone ?? this.phone,
+        fullName: fullName ?? this.fullName,
+        email: email ?? this.email,
+        selectedCompagnie:
+            (selectedCompagnie ?? this.selectedCompagnie).toUpperCase(),
+        qrCode: qrCode,
+        balance: balance ?? this.balance,
+        status: status ?? this.status,
+        isActive: isActive ?? this.isActive,
+        phoneVerified: phoneVerified ?? this.phoneVerified,
+        createdAt: createdAt,
+        lastLogin: lastLogin,
+        userType: userType ?? this.userType,
+        role: role ?? this.role,
+        compagnie: compagnie ?? this.compagnie,
+        countryCode: countryCode,
+        enterpriseId: enterpriseId ?? this.enterpriseId,
+        enterpriseName: enterpriseName ?? this.enterpriseName,
+        employeeNumber: employeeNumber ?? this.employeeNumber,
+        monthlyLimit: monthlyLimit ?? this.monthlyLimit,
+        currentMonthUsage: currentMonthUsage ?? this.currentMonthUsage,
+        profileLocked: profileLocked ?? this.profileLocked,
+        isCumulative: isCumulative ?? this.isCumulative,
+        department: department ?? this.department,
+        position: position ?? this.position,
+        loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
+      );
 }
