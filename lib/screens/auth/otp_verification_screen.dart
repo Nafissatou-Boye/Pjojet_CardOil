@@ -37,7 +37,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
   bool _isVerifying = false;
   bool _isResending = false;
   String? _errorMessage;
-  int _resendCountdown = 60;
+  int _resendCountdown = 30;
 
   late AnimationController _shakeCtrl;
   late Animation<double> _shakeAnim;
@@ -60,7 +60,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
   }
 
   void _startCountdown() async {
-    for (int i = 60; i >= 0; i--) {
+    for (int i = 30; i >= 0; i--) {
       if (!mounted) return;
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) setState(() => _resendCountdown = i);
@@ -73,7 +73,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
     if (!mounted) return;
     setState(() => _isResending = false);
     if (result['success'] == true) {
-      setState(() => _resendCountdown = 60);
+      setState(() => _resendCountdown = 30);
       _startCountdown();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Code renvoyé avec succès'), backgroundColor: Colors.green));
@@ -97,11 +97,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen>
 
   String get _otpCode => _controllers.map((c) => c.text).join();
 
-  void _clearFields() {
-    for (final c in _controllers) c.clear();
-    _focusNodes[0].requestFocus();
-  }
-
+ 
  
   Future<void> _verifyCode() async {
     final code = _otpCode;

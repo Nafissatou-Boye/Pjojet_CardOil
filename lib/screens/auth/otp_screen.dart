@@ -66,10 +66,10 @@ class _OtpScreenState extends State<OtpScreen>
     if (isResend) {
       // ✅ POST /api/auth/resend-code
       result = await _authService.resendOtp(phone: widget.phoneNumber);
-    } else {
-      // ✅ POST /api/auth/validate-phone
-      result = await _authService.validatePhone(phone: widget.phoneNumber);
-    }
+    }  else {
+  result = await _authService.resendOtp(phone: widget.phoneNumber);
+  
+}
 
     if (!mounted) return;
 
@@ -135,9 +135,13 @@ class _OtpScreenState extends State<OtpScreen>
         otpCode: code,
         companyId: data['companyId']?.toString() ?? '1',
       );
-    } else {
-       result = await _authService.validatePhone(phone: widget.phoneNumber);
-    }
+    }  else {
+  // Mode login : on confirme l'OTP directement
+  result = await _authService.confirmOtp(
+    phone: widget.phoneNumber,
+    otpCode: code,
+  );
+}
 
     if (!mounted) return;
 

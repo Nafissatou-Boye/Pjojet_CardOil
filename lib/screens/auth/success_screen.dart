@@ -22,15 +22,12 @@ class _SuccessScreenState extends State<SuccessScreen>
     _scaleAnimation = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
     _controller.forward();
 
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const ClientDashboard()),
-          (route) => false,
-        );
-      }
-    });
+   Future.delayed(const Duration(seconds: 2), () {
+  if (mounted) {
+    // ✅ Rediriger vers login, pas dashboard (pas de token encore)
+    Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
+  }
+});
   }
 
   @override

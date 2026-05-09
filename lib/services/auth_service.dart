@@ -1,6 +1,4 @@
 // lib/services/auth_service.dart
-// ✅ Sans cache utilisateur — toujours depuis /api/users/me
-//    Le cache causait des données périmées quand le backend corrige ses doublons
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -132,37 +130,105 @@ class AuthService {
       return {'success': false, 'error': 'Erreur réseau: $e'};
     }
   }
+  
+  
+ Future<Map<String, dynamic>> signupClient({
+  required String phone,
+  required String fullName,
+  required String password,
+  required String countryCode,
+  required String companyId,
+  int paysId = 1,
+}) async {
+  try {
+    final nameParts = fullName.trim().split(' ');
+    final firstName = nameParts.first;
+    final lastName = nameParts.length > 1
+        ? nameParts.sublist(1).join(' ')
+        : '';
 
-  // ── VALIDATION TÉLÉPHONE ──────────────────────────────────────────────────
-  Future<Map<String, dynamic>> validatePhone({required String phone}) async {
-    print('📱 validatePhone: $phone');
+            
+   
+     final body = {
+  'phoneNumber': phone,    // "+221766717046"
+  'username': phone,       // "+221766717046"
+  'firstName': firstName,
+  'lastName': lastName,
+  'role': 'CLIENT',
+  'companyId': int.tryParse(companyId) ?? 1,
+  'password': password,
+    };
 
-    for (final endpoint in ['/api/auth/validate-phone', '/api/auth/registerValidateur']) {
-      try {
-        final response = await http.post(
-          Uri.parse('$baseUrl$endpoint'),
-          headers: await _getHeaders(),
-          body: jsonEncode({'phoneNumber': phone}),
-        ).timeout(const Duration(seconds: 15));
+    print('📝 signupClient body: ${jsonEncode(body)}');
 
-        print('📥 $endpoint → ${response.statusCode}');
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/signup'),
+      headers: await _getHeaders(),
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
 
-        if (response.statusCode == 404) continue;
+    print('📥 /api/auth/signup → ${response.statusCode}');
+    print('📦 response: ${response.body}');
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          return {'success': true, 'message': 'Code SMS envoyé'};
-        }
-
-        final data = _decode(response.body);
-        return {'success': false, 'error': data['message']?.toString() ?? 'Erreur ${response.statusCode}'};
-      } catch (e) {
-        return {'success': false, 'error': 'Erreur réseau: $e'};
-      }
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return {'success': true};
     }
 
-    print('⚠️ Aucun endpoint OTP actif — skip validation SMS');
-    return {'success': true, 'skipOtp': true, 'message': 'Validation SMS non disponible'};
+    final data = _decode(response.body);
+    return {
+      'success': false,
+      'error': data['message']?.toString() ?? 'Erreur ${response.statusCode}',
+    };
+  } catch (e) {
+    return {'success': false, 'error': 'Erreur réseau: $e'};
   }
+}
+
+// Dans auth_service.dart
+Future<Map<String, dynamic>> confirmOtp({
+  required String phone,
+  required String otpCode,
+}) async {
+  try {
+    final body = {
+      'phoneNumber': phone,
+      'validationCode': otpCode,
+    };
+
+    print('🔑 confirmOtp body: ${jsonEncode(body)}');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/validate-phone'),
+      headers: await _getHeaders(),
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+
+    print('📥 /api/auth/validate-phone → ${response.statusCode}');
+    print('📦 response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = _decode(response.body);
+      final token = _extractToken(data);
+
+      if (token.isNotEmpty) {
+        // ✅ Token présent → sauvegarder et connecter directement
+        final user = _extractUser(data);
+        await _saveAuthData(AuthResponse(user: user, token: token, expiresIn: 86400));
+        return {'success': true, 'user': user, 'token': token};
+      }
+
+      // ✅ Pas de token → doit se connecter manuellement
+      return {'success': true, 'requiresLogin': true};
+    }
+
+    if (response.statusCode == 400) return {'success': false, 'error': 'Code invalide ou expiré'};
+    if (response.statusCode == 404) return {'success': false, 'error': 'Numéro introuvable'};
+
+    return {'success': false, 'error': 'Erreur ${response.statusCode}'};
+  } catch (e) {
+    return {'success': false, 'error': 'Erreur réseau: $e'};
+  }
+}
 
   // ── INSCRIPTION AVEC OTP ───────────────────────────────────────────────────
   Future<Map<String, dynamic>> signupWithOtp({

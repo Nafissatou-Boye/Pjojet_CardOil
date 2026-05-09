@@ -114,18 +114,18 @@ class UserModel {
   }
 
   // ── SÉRIALISATION ────────────────────────────────────────────────────────
-  Map<String, dynamic> toApiJson() => {
-        'id': id,
-        'username': username,
-        'firstname': fullName,
-        'email': email,
-        'role': role,
-        'compagnie': compagnie,
-        'phoneNumber': phone,
-        'countryCode': countryCode,
-        'phoneVerified': phoneVerified,
-      };
-
+Map<String, dynamic> toApiJson() => {
+  'id': id,
+  'username': username,
+  'firstname': fullName,
+  'email': email,
+  'role': role,
+  'compagnie': compagnie,
+  'selectedCompagnie': selectedCompagnie,   // ← AJOUTER cette ligne
+  'phoneNumber': phone,
+  'countryCode': countryCode,
+  'phoneVerified': phoneVerified,
+};
   String toJsonString() => jsonEncode(toApiJson());
 
   factory UserModel.fromJsonString(String jsonString) =>

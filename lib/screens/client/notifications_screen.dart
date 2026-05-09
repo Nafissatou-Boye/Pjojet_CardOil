@@ -268,20 +268,14 @@ class _NotificationCard extends StatelessWidget {
                                   '${meta.sign}${NumberFormat('#,##0.00', 'fr_FR').format(meta.amount)} FCFA',
                               color: color,
                             ),
-                        if (!isRecharge && meta.productName != null)
+                       if (meta.productName != null)
   _Chip(
-    icon: Icons.local_gas_station_rounded,
+    icon: isRecharge
+        ? Icons.battery_charging_full_rounded
+        : Icons.local_gas_station_rounded,
     label: meta.productName!,
     color: color,
   ),
-                          if (meta.productName != null)
-                            _Chip(
-                              icon: isRecharge
-                                  ? Icons.battery_charging_full_rounded
-                                  : Icons.local_gas_station_rounded,
-                              label: meta.productName!,
-                              color: color,
-                            ),
                           if (meta.pointsEarned != null &&
                               meta.pointsEarned! > 0)
                             _Chip(

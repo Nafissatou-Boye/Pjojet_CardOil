@@ -5,150 +5,163 @@ import 'package:intl/intl.dart';
 import '../../services/promotion_service.dart';
 import '../../models/promotion_model.dart';
 
-class PromotionDetailScreen extends StatelessWidget {
-  final String promotionId;
+class PromotionDetailScreen extends StatefulWidget {
+  final int promotionId;
 
-  const PromotionDetailScreen({
-    super.key,
-    required this.promotionId,
-  });
+  const PromotionDetailScreen({super.key, required this.promotionId});
+
+  @override
+  State<PromotionDetailScreen> createState() => _PromotionDetailScreenState();
+}
+
+class _PromotionDetailScreenState extends State<PromotionDetailScreen> {
+  final _promotionService = PromotionService();
+  late Future<PromotionModel?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _promotionService.getPromotion(widget.promotionId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final promotionService = PromotionService();
-
-    return StreamBuilder<PromotionModel?>(
-      stream: promotionService.getPromotionStream(promotionId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+    return FutureBuilder<PromotionModel?>(
+      future: _future,
+      builder: (context, snap) {
+        // ── Chargement ──
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        if (!snapshot.hasData || snapshot.data == null) {
+        // ── Erreur / introuvable ──
+        if (snap.hasError || snap.data == null) {
           return Scaffold(
             appBar: AppBar(
               title: const Text('Promotion'),
               backgroundColor: const Color(0xFF2563EB),
               foregroundColor: Colors.white,
             ),
-            body: const Center(
-              child: Text('Promotion introuvable'),
+            body: Center(
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+                const SizedBox(height: 16),
+                const Text('Promotion introuvable',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Retour'),
+                ),
+              ]),
             ),
           );
         }
 
-        final promo = snapshot.data!;
-        final gradientColors = _getGradientColors(promo.type);
+        final promo = snap.data!;
+        final colors = _gradientColors(promo.type);
 
         return Scaffold(
           body: CustomScrollView(
             slivers: [
-              // Header avec image/gradient
+              // ── Header ──
               SliverAppBar(
                 expandedHeight: 250,
                 pinned: true,
-                backgroundColor: gradientColors[0],
+                backgroundColor: colors[0],
                 foregroundColor: Colors.white,
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(
-                    promo.title,
+                    promo.name,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black26,
-                          blurRadius: 10,
-                        ),
-                      ],
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 10)],
                     ),
                   ),
                   background: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: gradientColors,
+                        colors: colors,
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                     ),
-                    child: promo.image != null
-                        ? Image.network(
-                            promo.image!,
-                            fit: BoxFit.cover,
-                          )
-                        : Center(
-                            child: Icon(
-                              _getIcon(promo.type),
-                              size: 100,
-                              color: Colors.white.withOpacity(0.3),
-                            ),
-                          ),
+                    child: Center(
+                      child: Icon(_icon(promo.type),
+                          size: 100, color: Colors.white.withOpacity(0.3)),
+                    ),
                   ),
                 ),
               ),
 
-              // Contenu
+              // ── Contenu ──
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Badge type + statut
-                      Row(
-                        children: [
-                          _buildBadge(
-                            _getTypeLabel(promo.type),
-                            gradientColors[0],
-                          ),
-                          const SizedBox(width: 8),
-                          if (promo.isActive)
-                            _buildBadge('ACTIF', const Color(0xFF10B981))
-                          else
-                            _buildBadge('EXPIRÉ', Colors.grey),
-                        ],
-                      ),
+                      // Badges
+                      Row(children: [
+                        _Badge(label: promo.typeLabel, color: colors[0]),
+                        const SizedBox(width: 8),
+                        if (promo.isActive)
+                          const _Badge(label: 'ACTIF', color: Color(0xFF10B981))
+                        else
+                          _Badge(label: 'EXPIRÉ', color: Colors.grey.shade400),
+                      ]),
 
                       const SizedBox(height: 24),
 
-                      // Description complète
-                      const Text(
-                        'Description',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
+                      // Description
+                      const Text('Description',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937))),
                       const SizedBox(height: 12),
                       Text(
-                        promo.description,
+                        promo.description ?? 'Aucune description disponible.',
                         style: TextStyle(
-                          fontSize: 16,
-                          height: 1.5,
-                          color: Colors.grey.shade700,
-                        ),
+                            fontSize: 16, height: 1.5, color: Colors.grey.shade700),
                       ),
 
                       const SizedBox(height: 32),
 
-                      // Dates
-                      _buildInfoSection(
-                        'Période de validité',
-                        Icons.calendar_today,
-                        'Du ${DateFormat('dd MMMM yyyy', 'fr_FR').format(promo.startDate)}\n'
-                        'Au ${DateFormat('dd MMMM yyyy', 'fr_FR').format(promo.endDate)}',
+                      // Période
+                      _InfoSection(
+                        title: 'Période de validité',
+                        icon: Icons.calendar_today,
+                        content:
+                            'Du ${DateFormat('dd MMMM yyyy', 'fr_FR').format(promo.startDate)}\n'
+                            'Au ${DateFormat('dd MMMM yyyy', 'fr_FR').format(promo.endDate)}',
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
-                      // Conditions
-                      if (promo.conditions.isNotEmpty)
-                        _buildInfoSection(
-                          'Conditions',
-                          Icons.info_outline,
-                          promo.conditions,
+                      // Points / multiplicateur
+                      if (promo.pointsMultiplier > 1 || promo.pointsRequired > 0)
+                        _InfoSection(
+                          title: 'Points',
+                          icon: Icons.star,
+                          content: [
+                            if (promo.pointsMultiplier > 1)
+                              'Multiplicateur : x${promo.pointsMultiplier.toStringAsFixed(1)}',
+                            if (promo.pointsRequired > 0)
+                              'Points requis : ${promo.pointsRequired}',
+                          ].join('\n'),
+                        ),
+
+                      if (promo.pointsMultiplier > 1 || promo.pointsRequired > 0)
+                        const SizedBox(height: 16),
+
+                      // Montant minimum
+                      if (promo.minPurchaseAmount > 0)
+                        _InfoSection(
+                          title: 'Conditions',
+                          icon: Icons.info_outline,
+                          content:
+                              'Achat minimum : ${promo.minPurchaseAmount.toStringAsFixed(0)} FCFA',
                         ),
 
                       const SizedBox(height: 32),
@@ -159,21 +172,16 @@ class PromotionDetailScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton(
-                            onPressed: () => _handleAction(context, promo),
+                            onPressed: () => _showParticipationConfirm(context, promo),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: gradientColors[0],
+                              backgroundColor: colors[0],
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                                  borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: Text(
-                              promo.actionButton,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            child: const Text('Participer',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
                           ),
                         ),
                     ],
@@ -187,7 +195,71 @@ class PromotionDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBadge(String label, Color color) {
+  void _showParticipationConfirm(BuildContext context, PromotionModel promo) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirmer la participation'),
+        content: Text('Participer à "${promo.name}" ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showSnack(context, 'Participation enregistrée !', Colors.green);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: _gradientColors(promo.type)[0]),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnack(BuildContext context, String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
+
+  List<Color> _gradientColors(PromotionType type) {
+    switch (type) {
+      case PromotionType.gift:
+        return [const Color(0xFF10B981), const Color(0xFF34D399)];
+      case PromotionType.scratch:
+        return [const Color(0xFFDC2626), const Color(0xFFEF4444)];
+      case PromotionType.points:
+      default:
+        return [const Color(0xFF2563EB), const Color(0xFF60A5FA)];
+    }
+  }
+
+  IconData _icon(PromotionType type) {
+    switch (type) {
+      case PromotionType.gift:
+        return Icons.card_giftcard;
+      case PromotionType.scratch:
+        return Icons.emoji_events;
+      case PromotionType.points:
+      default:
+        return Icons.star;
+    }
+  }
+}
+
+// ── Widgets internes ─────────────────────────────────────────────
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Badge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -195,18 +267,26 @@ class PromotionDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color, width: 1.5),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: color,
-        ),
-      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.bold, color: color)),
     );
   }
+}
 
-  Widget _buildInfoSection(String title, IconData icon, String content) {
+class _InfoSection extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final String content;
+
+  const _InfoSection({
+    required this.title,
+    required this.icon,
+    required this.content,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -214,115 +294,21 @@ class PromotionDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: const Color(0xFF2563EB)),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+          const SizedBox(width: 8),
+          Text(title,
+              style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            content,
+                  color: Color(0xFF1F2937))),
+        ]),
+        const SizedBox(height: 12),
+        Text(content,
             style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
-      ),
+                fontSize: 14, height: 1.5, color: Colors.grey.shade700)),
+      ]),
     );
-  }
-
-  void _handleAction(BuildContext context, PromotionModel promo) async {
-    final promotionService = PromotionService();
-    
-    // Vérifier si déjà participé
-    final hasParticipated = await promotionService.hasParticipated(promo.id);
-    
-    if (hasParticipated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vous avez déjà participé à cette promotion'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // Participer
-    final success = await promotionService.participatePromotion(promo.id);
-    
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Participation enregistrée avec succès !'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur lors de la participation'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  List<Color> _getGradientColors(String type) {
-    switch (type) {
-      case 'cashback':
-        return [const Color(0xFFF59E0B), const Color(0xFFFBBF24)];
-      case 'jackpot':
-        return [const Color(0xFFDC2626), const Color(0xFFEF4444)];
-      case 'reward':
-        return [const Color(0xFF10B981), const Color(0xFF34D399)];
-      case 'cagnotte':
-        return [const Color(0xFF8B5CF6), const Color(0xFFA78BFA)];
-      default:
-        return [const Color(0xFF3B82F6), const Color(0xFF60A5FA)];
-    }
-  }
-
-  IconData _getIcon(String type) {
-    switch (type) {
-      case 'cashback':
-        return Icons.percent;
-      case 'jackpot':
-        return Icons.emoji_events;
-      case 'reward':
-        return Icons.card_giftcard;
-      case 'cagnotte':
-        return Icons.savings;
-      default:
-        return Icons.local_offer;
-    }
-  }
-
-  String _getTypeLabel(String type) {
-    switch (type) {
-      case 'cashback':
-        return 'CASHBACK';
-      case 'jackpot':
-        return 'JACKPOT';
-      case 'reward':
-        return 'CADEAU';
-      case 'cagnotte':
-        return 'CAGNOTTE';
-      default:
-        return type.toUpperCase();
-    }
   }
 }

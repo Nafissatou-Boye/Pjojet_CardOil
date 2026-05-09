@@ -8,7 +8,7 @@ import '../../services/card_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/models.dart';
 import '../../langue/app_localizations.dart';
-import 'client_receipt_screen.dart';
+
 
 enum QRMode { myCard, scanner }
 
@@ -23,6 +23,7 @@ class QRCodeScreen extends StatefulWidget {
 class _QRCodeScreenState extends State<QRCodeScreen> {
   late QRMode _currentMode;
   MobileScannerController? _scannerController;
+  CameraFacing _cameraFacing = CameraFacing.back;
   bool _scanned = false;
   UserModel? _cachedUser;
   CardModel? _cachedCard;
@@ -80,6 +81,17 @@ class _QRCodeScreenState extends State<QRCodeScreen> {
       }
     });
   }
+
+   void _toggleCamera() async {
+    _cameraFacing = _cameraFacing == CameraFacing.back
+        ? CameraFacing.front
+        : CameraFacing.back;
+    await _scannerController?.stop();
+    _scannerController?.dispose();
+    _scannerController = MobileScannerController(facing: _cameraFacing);
+    setState(() {});
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -408,6 +420,19 @@ class _QRCodeScreenState extends State<QRCodeScreen> {
           ),
         ),
         Positioned(
+  top: 100, right: 16,
+  child: GestureDetector(
+    onTap: _toggleCamera,
+    child: Container(
+      width: 48, height: 48,
+      decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          shape: BoxShape.circle),
+      child: const Icon(Icons.flip_camera_ios_rounded,
+          color: Colors.white, size: 26)),
+  ),
+),
+        Positioned(
           bottom: 40,
           left: 0,
           right: 0,
@@ -521,6 +546,7 @@ class PaymentConfirmDialog extends StatefulWidget {
 
 class _PaymentConfirmDialogState extends State<PaymentConfirmDialog> {
   bool _isProcessing = false;
+  
 
   String _fmt(double v) => v.toStringAsFixed(0).replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -538,8 +564,9 @@ class _PaymentConfirmDialogState extends State<PaymentConfirmDialog> {
   );
 }
 
+
 Future<void> _processPayment() async {
-  if (_isProcessing) return; // ← GARDE anti-double-appui
+  if (_isProcessing) return;
   setState(() => _isProcessing = true);
 
   final t = AppLocalizations.of(context);
@@ -569,13 +596,21 @@ Future<void> _processPayment() async {
   final pompisteUsername = data['pompisteId']?.toString() ?? '';
   final clientUserId = user.id?.toString() ?? '';
 
-  // Validations
-  if (productId == 0) { _showSnack('Produit invalide', Colors.orange); setState(() => _isProcessing = false); return; }
-  if (cardRef == null || cardRef.isEmpty) { _showSnack('Carte introuvable', Colors.red); setState(() => _isProcessing = false); return; }
-  if (stationId == 0) { _showSnack('Station invalide', Colors.orange); setState(() => _isProcessing = false); return; }
-
-  debugPrint('💳 pompisteUsername: $pompisteUsername');
-  debugPrint('💳 clientUserId: $clientUserId');
+  if (productId == 0) {
+    _showSnack('Produit invalide', Colors.orange);
+    setState(() => _isProcessing = false);
+    return;
+  }
+  if (cardRef == null || cardRef.isEmpty) {
+    _showSnack('Carte introuvable', Colors.red);
+    setState(() => _isProcessing = false);
+    return;
+  }
+  if (stationId == 0) {
+    _showSnack('Station invalide', Colors.orange);
+    setState(() => _isProcessing = false);
+    return;
+  }
 
   final result = await txService.makeClientPayment(
     cardReference: cardRef,
@@ -592,52 +627,59 @@ Future<void> _processPayment() async {
   if (result['success'] == true) {
     debugPrint('✅ Paiement réussi: ${result['transactionId']}');
 
-    Navigator.of(context, rootNavigator: true).pop(true);
-if (context.mounted) {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 80, height: 80,
-            decoration: const BoxDecoration(
-              color: Color(0xFF22C55E), shape: BoxShape.circle),
-            child: const Icon(Icons.check_rounded, color: Colors.white, size: 48)),
-          const SizedBox(height: 20),
-          const Text('Transaction réussie !',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                  color: Color(0xFF1F2937))),
-          const SizedBox(height: 8),
-          Text(
-            'Votre paiement de ${_fmt(amount)} FCFA a été\neffectué avec succès.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, color: Color(0xFF6B7280), height: 1.5)),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity, height: 50,
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0),
-              child: const Text('Fermer',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                      color: Colors.white)))),
-        ]),
+    // ✅ Dialog d'abord
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 80, height: 80,
+              decoration: const BoxDecoration(
+                  color: Color(0xFF22C55E), shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.white, size: 48)),
+            const SizedBox(height: 20),
+            const Text('Transaction réussie !',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937))),
+            const SizedBox(height: 8),
+            Text(
+              'Votre paiement de ${_fmt(amount)} FCFA a été\neffectué avec succès.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 15, color: Color(0xFF6B7280), height: 1.5)),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity, height: 50,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(), // ✅ ferme le dialog
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0),
+                child: const Text('Fermer',
+                    style: TextStyle(fontSize: 16,
+                        fontWeight: FontWeight.w700, color: Colors.white)))),
+          ]),
+        ),
       ),
-    ),
-  );
-}
+    );
+
+    // ✅ Après fermeture du dialog → pop le PaymentConfirmDialog avec true
+    if (mounted) {
+      Navigator.of(context).pop(true);
+    }
+
   } else {
-    setState(() => _isProcessing = false); // ← réactiver seulement en cas d'échec
+    setState(() => _isProcessing = false);
 
     final error = result['error']?.toString().toLowerCase() ?? '';
-    String message;
+    final String message;
     if (error.contains('solde') || error.contains('insufficient') || error.contains('balance')) {
       message = '❌ Solde insuffisant';
     } else {

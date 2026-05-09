@@ -125,22 +125,39 @@ class _CorporateProfileScreenState extends State<CorporateProfileScreen> {
     );
   }
 
-  Widget _buildInfoCard(CorporateAccountModel account) {
-    return _card('Informations personnelles', Icons.person_outline, [
-      _field('Nom complet', account.fullName, Icons.badge_outlined),
+Widget _buildInfoCard(CorporateAccountModel account) {
+  return _card('Informations personnelles', Icons.person_outline, [
+    _field('Nom complet', account.fullName, Icons.badge_outlined),
+    if (account.email.isNotEmpty)
       _field('Email', account.email, Icons.email_outlined),
+    if (account.phoneNumber.isNotEmpty)
+      _field('Téléphone', account.phoneNumber, Icons.phone_outlined),
+    if (account.matriculePlaque.isNotEmpty)
       _field('Immatriculation', account.matriculePlaque, Icons.tag),
-    ]);
-  }
+  ]);
+}
 
-  Widget _buildEnterpriseCard(CorporateAccountModel account) {
-    return _card('Informations entreprise', Icons.domain_outlined, [
+Widget _buildEnterpriseCard(CorporateAccountModel account) {
+  return _card('Informations entreprise', Icons.domain_outlined, [
+    if (account.enterpriseName.isNotEmpty)
       _field('Entreprise', account.enterpriseName, Icons.business_outlined),
-      if (account.department != null) _field('Département', account.department!, Icons.group_outlined),
-      if (account.position != null) _field('Poste', account.position!, Icons.work_outline),
-      _field('Type de compte', account.isCapped ? 'Plafonné' : 'Cumulatif', Icons.account_balance_wallet_outlined),
-    ]);
-  }
+    if (account.department != null)
+      _field('Département', account.department!, Icons.group_outlined),
+    if (account.position != null)
+      _field('Poste', account.position!, Icons.work_outline),
+    _field('Type de compte',
+        account.isCapped ? 'Plafonné' : 'Cumulatif',
+        Icons.account_balance_wallet_outlined),
+    if (account.hasVehicle) ...[
+      _field('Marque/Modèle', account.marqueModele ?? '—', Icons.directions_car_outlined),
+      _field('Carburant', account.carburant ?? '—', Icons.local_gas_station),
+      if (account.boiteVitesse != null)
+        _field('Boîte de vitesse', account.boiteVitesse!, Icons.settings_outlined),
+      if (account.kilometrage != null)
+        _field('Kilométrage', '${account.kilometrage} km', Icons.speed),
+    ],
+  ]);
+}
 
   Widget _buildSecurityCard(BuildContext context) {
     return _card('Sécurité', Icons.security_outlined, [

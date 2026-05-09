@@ -23,59 +23,82 @@ class CorporateService {
   
 Future<Map<String, dynamic>> getMyAccount() async {
   try {
+    // ── 1. Récupérer user + carte en parallèle ──────────────────────
     final results = await Future.wait([
-      http.get(
-        Uri.parse('$_baseUrl/api/entreprises/compte/compte-entreprise'),
-        headers: await _headers(),
-      ).timeout(const Duration(seconds: 10)),
-      http.get(
-        Uri.parse('$_baseUrl/api/users/me'),
-        headers: await _headers(),
-      ).timeout(const Duration(seconds: 10)),
+      http.get(Uri.parse('$_baseUrl/api/users/me'),
+          headers: await _headers()).timeout(const Duration(seconds: 10)),
+      http.get(Uri.parse('$_baseUrl/api/cartes/me'),
+          headers: await _headers()).timeout(const Duration(seconds: 10)),
     ]);
 
-    final compteResp = results[0];
-    final userResp   = results[1];
+    final userResp  = results[0];
+    final carteResp = results[1];
 
-    print('📡 /compte-entreprise → ${compteResp.statusCode}');
-    print('📡 /users/me         → ${userResp.statusCode}');
+    print('📡 /users/me  → ${userResp.statusCode}: ${userResp.body}');
+    print('📡 /cartes/me → ${carteResp.statusCode}: ${carteResp.body}');
 
-    // ── Parser le compte ─────────────────────────────
-    Map<String, dynamic> compteJson = {};
-    if (compteResp.statusCode == 200) {
-      final raw = jsonDecode(compteResp.body);
-
-      if (raw is List && raw.isNotEmpty) {
-        compteJson = Map<String, dynamic>.from(raw.first as Map);
-      } else if (raw is Map) {
-        compteJson = Map<String, dynamic>.from(raw);
-      }
-
-      // ✅ DEBUG ICI (CORRECT)
-      print('💰 soldeReel       = ${compteJson['soldeReel']}');
-      print('💰 soldeDisponible = ${compteJson['soldeDisponible']}');
-      print('💰 solde           = ${compteJson['solde']}');
-      print('💰 TOUS LES CHAMPS: $compteJson');
-    }
-
-    // ── Parser user ─────────────────────────────
+    // ── 2. Parser user ───────────────────────────────────────────────
     Map<String, dynamic> userJson = {};
     if (userResp.statusCode == 200) {
       final raw = jsonDecode(userResp.body);
-
-      if (raw is List && raw.isNotEmpty) {
-        userJson = Map<String, dynamic>.from(raw.first as Map);
-      } else if (raw is Map && raw.containsKey('user')) {
+      if (raw is Map && raw.containsKey('user')) {
         userJson = Map<String, dynamic>.from(raw['user'] as Map);
       } else if (raw is Map) {
         userJson = Map<String, dynamic>.from(raw);
       }
     }
 
-    print('📋 compteJson: $compteJson');
-    print('📋 userJson.firstname: ${userJson['firstname']}');
+    // ── 3. Parser carte → solde ──────────────────────────────────────
+    Map<String, dynamic> compteJson = {};
+    if (carteResp.statusCode == 200) {
+      final raw = jsonDecode(carteResp.body);
+      final carteData = raw is Map && raw.containsKey('data')
+          ? raw['data'] as Map<String, dynamic>
+          : raw as Map<String, dynamic>;
 
-    // ── Construire modèle ─────────────────────────────
+      // Mapper les champs carte → champs attendus par CorporateAccountModel
+      final soldeReel = (carteData['soldeReel'] ?? carteData['solde_reel'] ?? 0).toDouble();
+      final solde     = (carteData['solde'] ?? soldeReel).toDouble();
+
+      compteJson = {
+        'soldeDisponible': soldeReel,
+        'soldeReel':       soldeReel,
+        'solde':           solde,
+        'balance':         soldeReel,
+        'reference':       carteData['reference'],
+        'pointsFidelite':  carteData['pointsFidelite'] ?? 0,
+        'statut':          carteData['statut'] ?? 'ACTIVE',
+      };
+
+      print('💳 Solde depuis /cartes/me: $soldeReel FCFA');
+    }
+
+    // ── 4. Fallback si carte aussi échoue → tenter /compte-entreprise
+    if (compteJson.isEmpty) {
+      print('⚠️ /cartes/me vide → tentative /compte-entreprise');
+      try {
+        final compteResp = await http.get(
+          Uri.parse('$_baseUrl/api/entreprises/compte/compte-entreprise'),
+          headers: await _headers(),
+        ).timeout(const Duration(seconds: 10));
+
+        print('📡 /compte-entreprise → ${compteResp.statusCode}');
+        if (compteResp.statusCode == 200) {
+          final raw = jsonDecode(compteResp.body);
+          if (raw is List && raw.isNotEmpty) {
+            compteJson = Map<String, dynamic>.from(raw.first as Map);
+          } else if (raw is Map) {
+            compteJson = Map<String, dynamic>.from(raw);
+          }
+        }
+      } catch (e) {
+        print('❌ /compte-entreprise: $e');
+      }
+    }
+
+    print('📋 compteJson final: $compteJson');
+    print('📋 userJson: $userJson');
+
     final account = CorporateAccountModel.fromCombined(
       compteJson: compteJson,
       userJson: userJson,
@@ -83,7 +106,6 @@ Future<Map<String, dynamic>> getMyAccount() async {
 
     print('✅ Account: ${account.fullName} | ${account.balance} FCFA');
 
-    // Cache
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_accountCacheKey, jsonEncode(account.toJson()));
 
@@ -91,12 +113,8 @@ Future<Map<String, dynamic>> getMyAccount() async {
 
   } catch (e) {
     print('❌ getMyAccount: $e');
-
     final cached = await _getCachedAccount();
-    if (cached != null) {
-      return {'success': true, 'account': cached, 'fromCache': true};
-    }
-
+    if (cached != null) return {'success': true, 'account': cached, 'fromCache': true};
     return await _fallbackFromProfile();
   }
 }

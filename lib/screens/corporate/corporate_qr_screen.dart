@@ -26,6 +26,7 @@ class _CorporateQRScreenState extends State<CorporateQRScreen>
   bool _isScanning = false;
   bool _scanned = false;
   MobileScannerController? _scannerCtrl;
+  CameraFacing _cameraFacing = CameraFacing.back;
 
   @override
   void initState() {
@@ -55,6 +56,16 @@ class _CorporateQRScreenState extends State<CorporateQRScreen>
       if (mounted) setState(() => _isScanning = false);
     }
   }
+
+  void _toggleCamera() async {
+  _cameraFacing = _cameraFacing == CameraFacing.back
+      ? CameraFacing.front
+      : CameraFacing.back;
+  await _scannerCtrl?.stop();
+  _scannerCtrl?.dispose();
+  _scannerCtrl = MobileScannerController(facing: _cameraFacing);
+  setState(() {});
+}
 
 // Dans _loadData() — ajouter log
 Future<void> _loadData() async {
@@ -334,6 +345,20 @@ final qrData = jsonEncode({
           Positioned(bottom: -2, left: -2, child: Transform.rotate(angle: -1.57, child: _corner())),
           Positioned(bottom: -2, right: -2, child: Transform.rotate(angle: 3.14, child: _corner())),
         ]))),
+
+        Positioned(
+  top: 100, right: 16,
+  child: GestureDetector(
+    onTap: _toggleCamera,
+    child: Container(
+      width: 48, height: 48,
+      decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          shape: BoxShape.circle),
+      child: const Icon(Icons.flip_camera_ios_rounded,
+          color: Colors.white, size: 26)),
+  ),
+),
       Positioned(bottom: 40, left: 0, right: 0,
         child: Center(child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

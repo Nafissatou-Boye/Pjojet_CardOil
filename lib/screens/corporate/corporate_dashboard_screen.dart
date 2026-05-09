@@ -1,3 +1,5 @@
+// lib/screens/corporate/corporate_dashboard_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/corporate_service.dart';
@@ -6,6 +8,7 @@ import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/corporate_employee_model.dart';
+import '../../widgets/dashboard_services_grid.dart';   // ← import du widget
 import 'corporate_history_screen.dart';
 import 'corporate_profile_screen.dart';
 import 'corporate_notifications_screen.dart';
@@ -21,7 +24,6 @@ class CorporateDashboardScreen extends StatefulWidget {
 
 class _CorporateDashboardScreenState extends State<CorporateDashboardScreen> {
   int _currentIndex = 0;
-
   String _fmt(double v) => NumberFormat('#,###', 'fr_FR').format(v);
 
   @override
@@ -65,9 +67,7 @@ class _CorporateDashboardScreenState extends State<CorporateDashboardScreen> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HOME TAB — charge via API
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _CorporateHomeTab extends StatefulWidget {
   final String userId;
   final String Function(double) fmt;
@@ -88,16 +88,19 @@ class _CorporateHomeTabState extends State<_CorporateHomeTab> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
-    final result = await CorporateService().getMyAccount();
-    if (!mounted) return;
-    if (result['success'] == true) {
-      setState(() { _account = result['account'] as CorporateAccountModel; _loading = false; });
-    } else {
-      setState(() { _error = result['error']?.toString(); _loading = false; });
-    }
+Future<void> _load() async {
+  setState(() { _loading = true; _error = null; });
+  final result = await CorporateService().getMyAccount();
+  if (!mounted) return;
+  if (result['success'] == true) {
+    final account = result['account'] as CorporateAccountModel;
+    print('🏢 enterpriseName: ${account.enterpriseName}');
+    print('🏢 enterpriseId: ${account.enterpriseId}');
+    setState(() { _account = account; _loading = false; });
+  } else {
+    setState(() { _error = result['error']?.toString(); _loading = false; });
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +116,9 @@ class _CorporateHomeTabState extends State<_CorporateHomeTab> {
     }
 
     final account = _account!;
+    // ✅ enterpriseId est une String → on parse en int pour DashboardServicesGrid
+    final companyId = int.tryParse(account.enterpriseId) ?? 0;
+
     return RefreshIndicator(
       onRefresh: _load,
       color: const Color(0xFF2563EB),
@@ -120,16 +126,19 @@ class _CorporateHomeTabState extends State<_CorporateHomeTab> {
         _CorporateBlueHeader(account: account, userId: widget.userId, fmt: widget.fmt),
         Expanded(child: Container(
           margin: const EdgeInsets.only(top: 100),
-          child: _CorporateWhiteContent(account: account, userId: widget.userId, fmt: widget.fmt),
+          child: _CorporateWhiteContent(
+            account: account,
+            userId: widget.userId,
+            fmt: widget.fmt,
+            companyId: companyId,   // ✅ passé ici
+          ),
         )),
       ]),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BLUE HEADER
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _CorporateBlueHeader extends StatelessWidget {
   final CorporateAccountModel account;
   final String userId;
@@ -165,28 +174,15 @@ class _CorporateBlueHeader extends StatelessWidget {
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                 overflow: TextOverflow.ellipsis,
               )),
-              // QR
-             GestureDetector(
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => CorporateQRScreen()),
-  ),
-  child: Container(
-    width: 44,
-    height: 44,
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.18),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: const Icon(
-      Icons.qr_code_scanner,
-      color: Colors.white,
-      size: 24,
-    ),
-  ),
-),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CorporateQRScreen())),
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 24),
+                ),
+              ),
               const SizedBox(width: 10),
-              // ✅ Cloche via API
               _CorporateNotifBell(userId: userId),
             ]),
             const SizedBox(height: 10),
@@ -215,78 +211,63 @@ class _CorporateBlueHeader extends StatelessWidget {
   }
 }
 
+
 class _CorporateNotifBell extends StatefulWidget {
   final String userId;
   const _CorporateNotifBell({required this.userId});
- 
+
   @override
   State<_CorporateNotifBell> createState() => _CorporateNotifBellState();
 }
- 
+
 class _CorporateNotifBellState extends State<_CorporateNotifBell> {
   final _authService = AuthService();
   final _notifService = NotificationService();
   String? _token;
   int _count = 0;
- 
+
   @override
   void initState() {
     super.initState();
     _init();
   }
- 
+
   Future<void> _init() async {
-    // Récupère le token depuis SharedPreferences
     final token = await _authService.getToken();
     if (!mounted) return;
     setState(() => _token = token);
- 
-    // Charge le compteur avec le token
     final count = await _notifService.getUnreadCount(token: token);
     if (!mounted) return;
     setState(() => _count = count);
   }
- 
+
   Future<void> _refreshCount() async {
     final count = await _notifService.getUnreadCount(token: _token);
     if (!mounted) return;
     setState(() => _count = count);
   }
- 
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CorporateNotificationsScreen(
-            userId: widget.userId,
-            token: _token, // ✅ Token transmis
-          ),
-        ),
-      ).then((_) => _refreshCount()), // Rafraîchit le badge au retour
+      onTap: () => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => CorporateNotificationsScreen(userId: widget.userId, token: _token),
+      )).then((_) => _refreshCount()),
       child: Stack(clipBehavior: Clip.none, children: [
         Container(
           width: 44, height: 44,
-          decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(12)),
-          child: const Icon(Icons.notifications_outlined,
-              color: Colors.white, size: 24),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
         ),
         if (_count > 0)
           Positioned(
             right: -2, top: -2,
             child: Container(
               padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                  color: Color(0xFFEF4444), shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
               child: Text(
                 _count > 9 ? '9+' : '$_count',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -294,7 +275,7 @@ class _CorporateNotifBellState extends State<_CorporateNotifBell> {
     );
   }
 }
- 
+
 
 class _CorporateBalanceCard extends StatelessWidget {
   final CorporateAccountModel account;
@@ -401,14 +382,19 @@ class _CorporateBalanceCard extends StatelessWidget {
   ]);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// WHITE CONTENT
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _CorporateWhiteContent extends StatelessWidget {
   final CorporateAccountModel account;
   final String userId;
   final String Function(double) fmt;
-  const _CorporateWhiteContent({required this.account, required this.userId, required this.fmt});
+  final int companyId;
+
+  const _CorporateWhiteContent({
+    required this.account,
+    required this.userId,
+    required this.fmt,
+    required this.companyId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -420,7 +406,10 @@ class _CorporateWhiteContent extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _buildServicesGrid(),
+
+            // ✅ Services dynamiques depuis l'API (remplace la grille statique)
+            DashboardServicesGrid(companyId: companyId),
+
             const SizedBox(height: 20),
             _buildAlertCard(),
             const SizedBox(height: 20),
@@ -432,40 +421,6 @@ class _CorporateWhiteContent extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _buildServicesGrid() {
-    final services = [
-      {'label': 'Carburant', 'icon': Icons.local_gas_station, 'colors': [const Color(0xFFDC2626), const Color(0xFFEF4444)]},
-      {'label': 'Lavage', 'icon': Icons.local_car_wash, 'colors': [const Color(0xFF0EA5E9), const Color(0xFF06B6D4)]},
-      {'label': 'Entretien', 'icon': Icons.build_rounded, 'colors': [const Color(0xFFF59E0B), const Color(0xFFFBBF24)]},
-      {'label': 'Autres', 'icon': Icons.more_horiz, 'colors': [const Color(0xFF6366F1), const Color(0xFF8B5CF6)]},
-    ];
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
-      const SizedBox(height: 12),
-      Row(children: services.map((s) {
-        final colors = s['colors'] as List<Color>;
-        return Expanded(child: Padding(
-          padding: EdgeInsets.only(right: s == services.last ? 0 : 10),
-          child: Container(
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: colors[0].withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]),
-            child: Stack(clipBehavior: Clip.hardEdge, children: [
-              Positioned(right: -10, bottom: -10, child: Icon(s['icon'] as IconData, size: 60, color: Colors.white.withOpacity(0.18))),
-              Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(s['icon'] as IconData, color: Colors.white, size: 20),
-                const Spacer(),
-                Text(s['label'] as String, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, height: 1.2)),
-              ])),
-            ]),
-          ),
-        ));
-      }).toList()),
-    ]);
   }
 
   Widget _buildAlertCard() {
@@ -493,10 +448,8 @@ class _CorporateWhiteContent extends StatelessWidget {
       );
     }
 
-    // Capped alert
     final level = account.usageLevel;
     final iconColor = level == 'red' ? const Color(0xFFEF4444) : level == 'yellow' ? const Color(0xFFF59E0B) : const Color(0xFF22C55E);
-    final bgColor = iconColor.withOpacity(0.1);
     final message = account.hasReachedLimit
         ? 'Plafond atteint — aucune dépense possible'
         : level == 'red' ? 'Attention ! Vous approchez de votre plafond'
@@ -505,7 +458,8 @@ class _CorporateWhiteContent extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16),
           border: Border.all(color: iconColor.withOpacity(0.3))),
       child: Row(children: [
         Icon(level == 'red' ? Icons.warning_rounded : level == 'yellow' ? Icons.info_rounded : Icons.check_circle_rounded,
@@ -538,7 +492,6 @@ class _CorporateWhiteContent extends StatelessWidget {
     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Informations entreprise ─────────────────────────────────────
       Row(children: [
         Container(width: 36, height: 36,
           decoration: BoxDecoration(color: const Color(0xFF2563EB).withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
@@ -556,8 +509,6 @@ class _CorporateWhiteContent extends StatelessWidget {
       if (account.phoneNumber.isNotEmpty)
         _infoRow(Icons.phone_outlined, 'Téléphone', account.phoneNumber),
       _infoRow(Icons.account_balance_wallet_outlined, 'Type de compte', account.isCapped ? 'Plafonné' : 'Cumulatif'),
-
-      // ── Véhicule ────────────────────────────────────────────────────
       if (account.hasVehicle) ...[
         const SizedBox(height: 16),
         const Divider(height: 1),
@@ -570,7 +521,6 @@ class _CorporateWhiteContent extends StatelessWidget {
           const Text('Véhicule', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
         ]),
         const SizedBox(height: 16),
-        // ✅ matriculePlaque — plus parlant que "Matricule"
         _infoRow(Icons.credit_card, 'Immatriculation', account.matriculePlaque),
         if (account.marqueModele != null && account.marqueModele!.isNotEmpty)
           _infoRow(Icons.directions_car_outlined, 'Modèle', account.marqueModele!),
@@ -596,7 +546,6 @@ class _CorporateWhiteContent extends StatelessWidget {
     ]),
   );
 
-  // ✅ Transactions depuis API
   Widget _buildRecentTransactions(BuildContext context) {
     final txService = TransactionService();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -611,12 +560,15 @@ class _CorporateWhiteContent extends StatelessWidget {
           }
           final txs = snap.data ?? [];
           if (txs.isEmpty) {
-            return Container(height: 60, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: const Center(child: Text('Aucune transaction', style: TextStyle(color: Color(0xFF9CA3AF)))));
+            return Container(
+              height: 60,
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: const Center(child: Text('Aucune transaction', style: TextStyle(color: Color(0xFF9CA3AF)))),
+            );
           }
           return Column(children: txs.take(5).map((tx) {
-           final isDebit = tx.transactionType == TransactionType.payment;  
-           return Container(
+            final isDebit = tx.transactionType == TransactionType.payment;
+            return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
@@ -643,28 +595,42 @@ class _CorporateWhiteContent extends StatelessWidget {
   }
 }
 
-// ── Painters / Clippers ─────────────────────────────────────────────────────
+
 class _WavePainter extends CustomPainter {
-  final Color color; final double opacity;
+  final Color color;
+  final double opacity;
   _WavePainter({required this.color, required this.opacity});
-  @override void paint(Canvas canvas, Size size) {
+
+  @override
+  void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color.withOpacity(opacity)..style = PaintingStyle.fill;
     final path = Path();
     path.moveTo(0, size.height * 0.65);
     path.quadraticBezierTo(size.width * 0.25, size.height * 0.55, size.width * 0.5, size.height * 0.7);
     path.quadraticBezierTo(size.width * 0.75, size.height * 0.85, size.width, size.height * 0.7);
-    path.lineTo(size.width, size.height); path.lineTo(0, size.height); path.close();
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
     canvas.drawPath(path, paint);
   }
-  @override bool shouldRepaint(CustomPainter old) => false;
+
+  @override
+  bool shouldRepaint(CustomPainter old) => false;
 }
 
 class _ConcaveClipper extends CustomClipper<Path> {
-  @override Path getClip(Size size) {
-    const depth = 30.0; final path = Path();
-    path.moveTo(0, 0); path.quadraticBezierTo(size.width / 2, depth, size.width, 0);
-    path.lineTo(size.width, size.height); path.lineTo(0, size.height); path.close();
+  @override
+  Path getClip(Size size) {
+    const depth = 30.0;
+    final path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width / 2, depth, size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
     return path;
   }
-  @override bool shouldReclip(CustomClipper<Path> old) => false;
+
+  @override
+  bool shouldReclip(CustomClipper<Path> old) => false;
 }

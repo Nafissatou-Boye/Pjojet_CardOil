@@ -327,7 +327,7 @@ Widget build(BuildContext context) {
                           ),
                        if (!isRecharge && meta.productName != null)
   _MetaChip(
-    icon: Icons.local_gas_station_rounded,
+     icon: Icons.local_gas_station_rounded,
     label: meta.productName!,
     color: color,
   ),
